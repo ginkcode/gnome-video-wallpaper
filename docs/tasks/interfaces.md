@@ -57,8 +57,10 @@ Canvas bounds are the union of logical rectangles. Translate by the minimum x/y 
 export function buildMpvArgv({mpvPath, socketPath, vo, hwdec = 'vaapi',
                               appId = 'gink-video-wallpaper', lowPriority = true})
 // -> string[]; idle=yes, force-window=no, pause=yes, no initial file
+export function withParentDeathSignal(argv, parentPid)
+// -> string[]; setpriv --pdeathsig KILL, then exec argv only if still parented by parentPid
 ```
-Start with no media window; select load options from PlaybackAsset after IPC is subscribed. Use identity fitting for geometryBaked assets, configured fit otherwise.
+Start with no media window; select load options from PlaybackAsset after IPC is subscribed. Use identity fitting for geometryBaked assets, configured fit otherwise. `--clipboard-backends=vo` is required: mpv's Wayland clipboard backend otherwise consumes the trusted `WAYLAND_SOCKET`, and the video window then arrives on an untrusted connection that `owns_window()` rejects. `PlayerProcess` applies `withParentDeathSignal` itself.
 
 ## `lib/monitorIdentity.js` (T05) [pure]
 
@@ -107,6 +109,11 @@ Subscribe before `loadfile` of the selected paused asset. Persistent observation
 ## `lib/playerProcess.js` (T07) [shell]
 
 ```js
+export async function preparePlayerSocket({cancellable} = {})
+// -> absolute socket path; creates/validates the private runtime directory and
+//    allocates a short unique per-instance socket basename before argv construction
+export function releasePlayerSocket(socketPath)
+// Release an unused allocation without removing any file; cancellation also releases it.
 export class PlayerProcess {
     constructor({argv, socketPath, logger})
     start()                                  // spawn via Meta.WaylandClient.new_subprocess
@@ -118,7 +125,7 @@ export class PlayerProcess {
     async stop({graceMs = 1000})              // bounded graceful stop, resolves after reap
 }
 ```
-Each instance has a short unique socket basename, not a reusable monitor socket. Cleanup may unlink only that instance's socket after reaping. `terminateNow()` cancels any grace timer and initiates forceful termination without awaiting. Residual reaping holds only the old process/socket, never extension state. Shell-exit lifetime handling must be demonstrated in M1 (including abnormal exit); do not assume children die with Shell. A verified external lifetime mechanism is required if the spawning API does not ensure this.
+Call `preparePlayerSocket` before `buildMpvArgv`, then construct the player with that allocated path. Construction consumes the allocation once and rejects a mismatched or duplicated IPC option. If construction/spawning is abandoned, cancel the preparation's cancellable or call `releasePlayerSocket`; neither removes files. Each instance has a short unique socket basename, not a reusable monitor socket. Cleanup may unlink only that instance's socket after reaping. Exit `status` is the exit code, or `128 + signal` when `signaled` is true; the latched result is immutable. `terminateNow()` cancels any grace timer and initiates forceful termination without awaiting. Residual reaping holds only the old process/socket, never extension state. Shell-exit lifetime handling must be demonstrated in M1 (including abnormal exit); do not assume children die with Shell. Mutter does not ensure this, so the child is spawned through `withParentDeathSignal` (requires util-linux `setpriv`).
 
 ## `lib/backgroundLayer.js` (T08) [shell]
 
