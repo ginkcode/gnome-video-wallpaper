@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <enum id="org.gnome.shell.extensions.gink-video-wallpaper.FitMode">
+    <value nick="fill" value="0"/>
+    <value nick="fit" value="1"/>
+    <value nick="stretch" value="2"/>
+  </enum>
+
+  <enum id="org.gnome.shell.extensions.gink-video-wallpaper.VideoOutput">
+    <value nick="auto" value="0"/>
+    <value nick="gpu-next" value="1"/>
+    <value nick="dmabuf-wayland" value="2"/>
+  </enum>
+
+  <schema id="org.gnome.shell.extensions.gink-video-wallpaper"
+          path="/org/gnome/shell/extensions/gink-video-wallpaper/">
+    <key name="monitor-configs" type="s">
+      <default>'{}'</default>
+      <summary>Per-monitor wallpaper configuration</summary>
+      <description>JSON object keyed by physical monitor identity. Each value is {"file": absolute path, "fitMode": "fill"|"fit"|"stretch"|null, "optimize": bool|null}. null uses the global default.</description>
+    </key>
+
+    <key name="default-fit-mode" enum="org.gnome.shell.extensions.gink-video-wallpaper.FitMode">
+      <default>'fill'</default>
+      <summary>Default fit mode</summary>
+      <description>How video is scaled when a monitor has no fit-mode override.</description>
+    </key>
+
+    <key name="startup-delay-ms" type="u">
+      <default>3000</default>
+      <range min="0" max="60000"/>
+      <summary>Startup delay</summary>
+      <description>Milliseconds to wait after startup-complete before spawning players.</description>
+    </key>
+
+    <key name="stagger-ms" type="u">
+      <default>500</default>
+      <range min="0" max="10000"/>
+      <summary>Player start stagger</summary>
+      <description>Milliseconds between starting each logical monitor's player.</description>
+    </key>
+
+    <key name="pause-on-maximized" type="b">
+      <default>true</default>
+      <summary>Pause when covered</summary>
+      <description>Pause a monitor's player while a maximized or fullscreen window covers it.</description>
+    </key>
+
+    <key name="pause-on-overview" type="b">
+      <default>true</default>
+      <summary>Pause in Overview</summary>
+      <description>Pause players while the Overview is visible.</description>
+    </key>
+
+    <key name="pause-on-battery" type="b">
+      <default>true</default>
+      <summary>Pause on battery</summary>
+      <description>Pause players while running on battery power.</description>
+    </key>
+
+    <key name="optimize-videos" type="b">
+      <default>false</default>
+      <summary>Optimize videos</summary>
+      <description>Prepare videos as target-sized SDR H.264 in preferences. Animated GIFs are always prepared. Login never transcodes.</description>
+    </key>
+
+    <key name="video-output" enum="org.gnome.shell.extensions.gink-video-wallpaper.VideoOutput">
+      <default>'auto'</default>
+      <summary>Video output</summary>
+      <description>mpv video output. auto is chosen from Milestone 1 measurements.</description>
+    </key>
+
+    <key name="max-retries" type="u">
+      <default>3</default>
+      <range min="0" max="10"/>
+      <summary>Maximum retries</summary>
+      <description>Player restart limit before staying on the still.</description>
+    </key>
+
+    <key name="debug-logging" type="b">
+      <default>false</default>
+      <summary>Debug logging</summary>
+      <description>Enable debug-level logs.</description>
+    </key>
+
+    <key name="saved-picture-uri" type="s">
+      <default>''</default>
+      <summary>Saved light wallpaper</summary>
+      <description>Original picture-uri to restore.</description>
+    </key>
+
+    <key name="saved-picture-uri-dark" type="s">
+      <default>''</default>
+      <summary>Saved dark wallpaper</summary>
+      <description>Original picture-uri-dark to restore.</description>
+    </key>
+
+    <key name="saved-picture-options" type="s">
+      <default>''</default>
+      <summary>Saved picture options</summary>
+      <description>Original picture-options to restore.</description>
+    </key>
+
+    <key name="wallpaper-applied" type="b">
+      <default>false</default>
+      <summary>Wallpaper applied</summary>
+      <description>Whether the original wallpaper is saved and currently replaced.</description>
+    </key>
+  </schema>
+</schemalist>

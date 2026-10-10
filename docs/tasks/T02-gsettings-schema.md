@@ -2,8 +2,8 @@
 
 - **Milestone:** M1
 - **Depends on:** T01
-- **Status:** todo
-- **Owner:**
+- **Status:** done
+- **Owner:** haith
 - **Skills:** GSettings XML, GJS
 
 ## Goal
@@ -43,6 +43,6 @@ Define all settings from [../settings.md](../settings.md) and provide pure helpe
 
 ## Acceptance criteria
 
-- [ ] `glib-compile-schemas --strict schemas/` passes.
-- [ ] `gsettings --schemadir schemas list-recursively org.gnome.shell.extensions.gink-video-wallpaper` shows all keys.
-- [ ] `make test` passes config tests (read empty, write/merge, remove, invalid JSON).
+- [x] `glib-compile-schemas --strict schemas/` passes.
+- [x] `gsettings --schemadir schemas list-recursively org.gnome.shell.extensions.gink-video-wallpaper` shows all keys.
+- [x] `make test` passes config tests (read empty, write/merge, remove, invalid JSON).

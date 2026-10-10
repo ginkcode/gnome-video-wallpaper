@@ -16,7 +16,7 @@ Read first:
 | ID | Title | Milestone | Depends on | Status | Owner |
 |---|---|---|---|---|---|
 | [T01](T01-project-scaffold.md) | Project scaffold and tooling | M1 | — | done | haith |
-| [T02](T02-gsettings-schema.md) | GSettings schema | M1 | T01 | todo | |
+| [T02](T02-gsettings-schema.md) | GSettings schema | M1 | T01 | done | haith |
 | [T03](T03-core-utilities.md) | Logger and lifecycle utilities | M1 | T01 | todo | |
 | [T04](T04-geometry.md) | Geometry (fit modes) + unit test runner | M1 | T01 | todo | |
 | [T05](T05-monitor-identity.md) | Monitor identity | M1 | T01 | todo | |
