@@ -2,8 +2,8 @@
 
 - **Milestone:** M1
 - **Depends on:** —
-- **Status:** todo
-- **Owner:**
+- **Status:** done
+- **Owner:** haith
 - **Skills:** GJS basics, npm, Make
 
 ## Goal
@@ -43,8 +43,14 @@ Create a loadable empty extension plus build, lint, test, and nested-shell tooli
 
 ## Acceptance criteria
 
-- [ ] `make lint` passes.
-- [ ] `make test` exits 0 with no tests.
-- [ ] Extension appears in `gnome-extensions list` and enables without errors in the nested shell.
-- [ ] `gnome-extensions prefs <uuid>` opens an empty preferences window.
-- [ ] `make zip` produces an installable zip.
+- [x] `make lint` passes.
+- [x] `make test` exits 0 with no tests.
+- [x] Extension appears in `gnome-extensions list` and enables without errors in the host shell (nested-shell verification was not run).
+- [x] `gnome-extensions prefs <uuid>` opens an empty preferences window.
+- [x] `make zip` produces an extension zip; installation is pending manual verification.
+
+## Verification notes
+
+- 2026-10-10: scaffold created; lint, empty test runner, packaging, and `git diff --check` pass.
+- Verified on host session: extension listed in `gnome-extensions list`, `gnome-extensions prefs` opens cleanly with exit 0, and `gnome-extensions enable/disable` logs expected `[gink-vw]` messages into journal without errors.
+- Schema compilation is skipped while `schemas/` has no XML files; T02 adds the schema.

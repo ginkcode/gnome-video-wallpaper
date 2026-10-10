@@ -1,0 +1,9 @@
+{
+  "uuid": "gink-video-wallpaper@ginkcode.github.io",
+  "name": "Gink Video Wallpaper",
+  "description": "Play videos and GIFs as the desktop wallpaper, per monitor.",
+  "shell-version": ["50"],
+  "settings-schema": "org.gnome.shell.extensions.gink-video-wallpaper",
+  "session-modes": ["user"],
+  "url": "https://github.com/ginkcode/gnome-video-wallpaper"
+}
