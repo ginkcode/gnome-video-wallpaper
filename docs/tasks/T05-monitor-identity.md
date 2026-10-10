@@ -2,8 +2,8 @@
 
 - **Milestone:** M1
 - **Depends on:** T01
-- **Status:** todo
-- **Owner:**
+- **Status:** done
+- **Owner:** haith
 - **Skills:** D-Bus, GVariant, Mutter
 
 ## Goal
@@ -23,8 +23,8 @@ Stable per-monitor IDs that survive reboots, reordering, and hotplug, usable fro
 
 ## Acceptance criteria
 
-- [ ] On this device returns one monitor `eDP-1:...` with correct size and scale.
-- [ ] Same monitor yields the same ID across reboots.
-- [ ] Two identical-model monitors get distinct IDs (serial or connector).
-- [ ] Tests pass.
-- [ ] Mixed-scale and rotated fixtures distinguish physical mode pixels from transformed logical rectangles; mirrored connectors share an index/key and resolve the first configured sorted connector regardless of input ordering.
+- [x] On this device returns one monitor `eDP-1:...` with correct size and scale.
+- [x] Same monitor yields the same ID across reboots.
+- [x] Two identical-model monitors get distinct IDs (serial or connector).
+- [x] Tests pass.
+- [x] Mixed-scale and rotated fixtures distinguish physical mode pixels from transformed logical rectangles; mirrored connectors share an index/key and resolve the first configured sorted connector regardless of input ordering.

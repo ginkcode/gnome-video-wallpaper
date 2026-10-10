@@ -1,0 +1,19 @@
+[
+  1,
+  [
+    [
+      ["HDMI-2", "DEL", "Same", "B"],
+      [["1920x1080", 1920, 1080, 60, 1, [1], {"is-current": true}]],
+      {"display-name": "Mirror B"}
+    ],
+    [
+      ["HDMI-1", "DEL", "Same", "A"],
+      [["1920x1080", 1920, 1080, 60, 1, [1], {"is-current": true}]],
+      {"display-name": "Mirror A"}
+    ]
+  ],
+  [
+    [0, 0, 1, 0, true, [["HDMI-2", "DEL", "Same", "B"], ["HDMI-1", "DEL", "Same", "A"]], {}]
+  ],
+  {"layout-mode": 1}
+]

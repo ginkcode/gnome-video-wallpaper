@@ -1,0 +1,20 @@
+[
+  1,
+  [
+    [
+      ["HDMI-1", "DEL", "U2723", "SN2"],
+      [["2560x1440", 2560, 1440, 60, 1, [1], {"is-current": true}]],
+      {"display-name": "External"}
+    ],
+    [
+      ["eDP-1", "LEN", "Panel", "SN1"],
+      [["1920x1080", 1920, 1080, 60, 1, [1], {"is-current": true}]],
+      {"display-name": "Built-in"}
+    ]
+  ],
+  [
+    [0, 0, 1, 0, true, [["eDP-1", "LEN", "Panel", "SN1"]], {}],
+    [1920, 0, 1.5, 1, false, [["HDMI-1", "DEL", "U2723", "SN2"]], {}]
+  ],
+  {"layout-mode": 1}
+]

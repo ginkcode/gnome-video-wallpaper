@@ -19,7 +19,7 @@ Read first:
 | [T02](T02-gsettings-schema.md) | GSettings schema | M1 | T01 | done | haith |
 | [T03](T03-core-utilities.md) | Logger and lifecycle utilities | M1 | T01 | done | haith |
 | [T04](T04-geometry.md) | Geometry (fit modes) + unit test runner | M1 | T01 | done | haith |
-| [T05](T05-monitor-identity.md) | Monitor identity | M1 | T01 | todo | |
+| [T05](T05-monitor-identity.md) | Monitor identity | M1 | T01 | done | haith |
 | [T06](T06-mpv-ipc.md) | mpv IPC client | M1 | T03 | todo | |
 | [T07](T07-player-process.md) | mpv player process | M1 | T03, T04 | todo | |
 | [T08](T08-background-layer.md) | Background layer (window hide + clone) | M1 | T03, T07 | todo | |
