@@ -2,8 +2,8 @@
 
 - **Milestone:** M1
 - **Depends on:** T01
-- **Status:** todo
-- **Owner:**
+- **Status:** done
+- **Owner:** haith
 - **Skills:** JS, basic math
 
 ## Goal
@@ -28,7 +28,7 @@ Single source of truth for normalized display geometry and target raster fitting
 
 ## Acceptance criteria
 
-- [ ] All geometry tests pass.
-- [ ] Test runner reports failures with non-zero exit.
-- [ ] `computeCanvas` produces gap-free adjacent rectangles at a common scale for mixed 100%/150% monitors, and round-trips mirrored groups exactly once.
-- [ ] SAR/rotation normalization inputs produce placement/scale independent of raw physical mode width/height.
+- [x] All geometry tests pass.
+- [x] Test runner reports failures with non-zero exit.
+- [x] `computeCanvas` produces gap-free adjacent rectangles at a common scale for mixed 100%/150% monitors, and round-trips mirrored groups exactly once.
+- [x] SAR/rotation normalization inputs produce placement/scale independent of raw physical mode width/height.
