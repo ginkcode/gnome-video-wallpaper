@@ -1,7 +1,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
-import Clutter from 'gi://Clutter';
+import St from 'gi://St';
 import Shell from 'gi://Shell';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -10,6 +10,8 @@ import {PlayerProcess, preparePlayerSocket} from './lib/playerProcess.js';
 import {buildMpvArgv} from './lib/mpvArgs.js';
 import {MpvIpc} from './lib/mpvIpc.js';
 import {BackgroundLayer} from './lib/backgroundLayer.js';
+import {startRecording, stopRecording} from './t08-capture.js';
+import {verifyConsumers} from './t08-consumers.js';
 
 function report(event, details = {}) {
     console.log(`T08_RESULT ${JSON.stringify({event, ...details})}`);
@@ -31,7 +33,14 @@ export default class T08Fixture extends Extension {
         this._signals = [];
         this._players = [];
         this._ipcs = [];
+        this._layers = [];
+        this._restoreBackgroundLoad = null;
+        this._restoreDockFilter = null;
+        this._restoreIconClick = null;
         this._run().catch(error => {
+            this._restoreBackgroundLoad?.();
+            for (const layer of this._layers)
+                layer.destroy();
             report('fail', {message: error.message, stack: error.stack});
             for (const player of this._players)
                 player.terminateNow();
@@ -40,12 +49,19 @@ export default class T08Fixture extends Extension {
     }
 
     disable() {
+        if (this._heartbeatId) {
+            GLib.source_remove(this._heartbeatId);
+            this._heartbeatId = 0;
+        }
         for (const [object, id] of this._signals)
             object.disconnect(id);
         for (const actor of this._actors)
             actor.destroy();
         for (const ipc of this._ipcs)
             ipc.close();
+        this._restoreBackgroundLoad?.();
+        for (const layer of this._layers)
+            layer.destroy();
         for (const player of this._players)
             player.terminateNow();
     }
@@ -67,7 +83,83 @@ export default class T08Fixture extends Extension {
                     reject(error);
                 }
             }));
-        report('capture', {name});
+        report('capture', {name, monotonicUs: GLib.get_monotonic_time()});
+    }
+
+    async _delayedBackground(layer) {
+        const manager = Main.layoutManager._bgManagers[0];
+        const prototype = Object.getPrototypeOf(manager.backgroundActor.content.background);
+        const original = prototype._loadFile;
+        const target = Gio.File.new_for_path(GLib.getenv('T08_STILL'));
+        let release;
+        let intercepted = false;
+        let loaded = false;
+        const gate = new Promise(resolve => {
+            release = resolve;
+        });
+        prototype._loadFile = async function (file) {
+            if (file.equal(target)) {
+                intercepted = true;
+                report('system-load-held');
+                await gate;
+            }
+            if (!this._cancellable.is_cancelled())
+                return original.call(this, file);
+            return undefined;
+        };
+        this._restoreBackgroundLoad = () => {
+            prototype._loadFile = original;
+            release();
+            this._restoreBackgroundLoad = null;
+        };
+        try {
+            const settings = new Gio.Settings({schema_id: 'org.gnome.desktop.background'});
+            settings.set_string('picture-uri', target.get_uri());
+            settings.set_string('picture-uri-dark', target.get_uri());
+            const deadline = GLib.get_monotonic_time() + 2000000;
+            while (!intercepted && GLib.get_monotonic_time() < deadline)
+                await delay(10);
+            if (!intercepted || !manager._newBackgroundActor)
+                throw new Error('system background loading was not intercepted');
+            const pending = manager._newBackgroundActor.content.background;
+            const id = pending.connect('loaded', () => {
+                loaded = true;
+            });
+            try {
+                const clone = layer._clone;
+                const originalSetSource = clone.set_source.bind(clone);
+                let ordering = false;
+                clone.set_source = source => {
+                    ordering = layer._static.opacity === 255 &&
+                        layer._static.content === layer._preparedImage;
+                    originalSetSource(source);
+                };
+                layer.showStatic();
+                if (!ordering || layer._clone || pending.isLoaded)
+                    throw new Error('still handoff ordering or delayed load failed');
+                await this._capture('handoff-transition');
+                for (let sample = 0; sample < 5; sample++) {
+                    await delay(200);
+                    if (pending.isLoaded || loaded)
+                        throw new Error('system background loaded before gate release');
+                    await this._capture(`handoff-delay-${sample}`);
+                }
+                report('handoff-held', {ordering, loaded, isLoaded: pending.isLoaded});
+                release();
+                const loadDeadline = GLib.get_monotonic_time() + 5000000;
+                while (!loaded && GLib.get_monotonic_time() < loadDeadline)
+                    await delay(10);
+                if (!loaded)
+                    throw new Error('system background did not load after release');
+                await this._capture('handoff-loaded');
+                await delay(1200);
+                report('handoff-complete', {loaded, retained: layer._static.opacity === 255});
+            } finally {
+                pending.disconnect(id);
+            }
+        } finally {
+            this._restoreBackgroundLoad();
+        }
     }
 
     async _layerCycle(cycle, baseline) {
@@ -76,9 +168,11 @@ export default class T08Fixture extends Extension {
             vo: 'wlshm', hwdec: 'no'}), socketPath, logger});
         this._players.push(player);
         const layer = new BackgroundLayer({monitorIndex: 0, logger});
+        this._layers.push(layer);
         const discovery = layer.watchWindow(player, {timeoutMs: 5000});
         await layer.prepareStatic(GLib.getenv('T08_STILL'));
         player.start();
+        report('spawn', {pid: player.pid});
         const ipc = new MpvIpc(socketPath, logger);
         this._ipcs.push(ipc);
         await ipc.connect({timeoutMs: 5000});
@@ -91,7 +185,10 @@ export default class T08Fixture extends Extension {
         await delay(50);
         if (cycle === 0)
             await this._capture('layer-video');
-        layer.showStatic();
+        if (cycle === 0)
+            await this._delayedBackground(layer);
+        else
+            layer.showStatic();
         await delay(50);
         if (cycle === 0)
             await this._capture('layer-static');
@@ -104,6 +201,7 @@ export default class T08Fixture extends Extension {
     }
 
     async _run() {
+        report('fixture', {shellPid: 0});
         await delay(1800);
         Main.overview.hide();
         await delay(800);
@@ -114,65 +212,92 @@ export default class T08Fixture extends Extension {
         const player = new PlayerProcess({argv: buildMpvArgv({mpvPath: '/usr/bin/mpv', socketPath,
             vo: 'wlshm', hwdec: 'no'}), socketPath, logger});
         this._players.push(player);
-        let window = null;
-        let actor = null;
-        let firstFrame = false;
+        const layer = new BackgroundLayer({monitorIndex: 0, logger});
+        this._layers.push(layer);
+        const discovery = layer.watchWindow(player, {timeoutMs: 30000});
+        discovery.catch(() => {});
         const id = global.display.connect('window-created', (_display, candidate) => {
             if (!player.ownsWindow(candidate))
                 return;
-            window = candidate;
-            actor = window.get_compositor_private();
-            report('discovery', {actor: Boolean(actor), opacity: actor?.opacity,
-                mapped: actor?.mapped});
-            window.hide_from_window_list();
-            window.lower();
-            window.stick();
-            if (!actor)
-                throw new Error('actor absent in creation callback');
-            Main.wm.skipNextEffect(actor);
-            actor.opacity = 0;
-            actor.reactive = false;
-            this._signals.push([actor, actor.connect('notify::opacity', () => {
-                if (actor.opacity !== 0)
-                    actor.opacity = 0;
-            })]);
-            this._signals.push([actor, actor.connect('first-frame', () => {
-                firstFrame = true;
-                report('first-frame', {opacity: actor.opacity, mapped: actor.mapped});
-            })]);
+            const source = candidate.get_compositor_private();
+            report('discovery', {actor: Boolean(source), opacity: source?.opacity,
+                mapped: source?.mapped, monotonicUs: GLib.get_monotonic_time()});
+            if (source) {
+                this._signals.push([source, source.connect('first-frame', () => {
+                    report('first-frame', {opacity: source.opacity, mapped: source.mapped,
+                        monotonicUs: GLib.get_monotonic_time()});
+                })]);
+            }
         });
         this._signals.push([global.display, id]);
+        let recording = null;
+        let heartbeat = null;
+        try {
+            heartbeat = new St.Widget({width: 16, height: 16, x: 1000, y: 0,
+                reactive: false, style: 'background-color: #ff0000;'});
+            global.stage.add_child(heartbeat);
+            this._actors.push(heartbeat);
+            this._heartbeatId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 8, () => {
+                heartbeat.opacity = heartbeat.opacity === 255 ? 128 : 255;
+                return GLib.SOURCE_CONTINUE;
+            });
+        } catch (error) {
+            report('heartbeat-blocked', {message: error.message});
+        }
+        try {
+            recording = await startRecording('map-flash');
+            report('recording-started', {filename: recording.filename, monotonicUs: recording.startedUs});
+        } catch (error) {
+            report('capture-blocked', {message: error.message});
+        }
         player.start();
+        report('spawn', {pid: player.pid});
         const ipc = new MpvIpc(socketPath, logger);
         this._ipcs.push(ipc);
         await ipc.connect({timeoutMs: 5000});
         await delay(700);
-        report('idle', {window: Boolean(window)});
+        report('idle', {window: Boolean(layer._window)});
         await ipc.command(['loadfile', GLib.getenv('T08_ASSET')], {assetIdentity: 'selected-green'});
         await ipc.waitForContent({assetIdentity: 'selected-green', timeoutMs: 10000});
-        const deadline = GLib.get_monotonic_time() + 5000000;
-        while (!firstFrame && GLib.get_monotonic_time() < deadline)
-            await delay(10);
-        report('readiness', {firstFrame, focused: window === global.display.focus_window,
+        const window = await discovery;
+        const actor = window.get_compositor_private();
+        await layer.waitForFirstFrame({timeoutMs: 10000});
+        report('readiness', {firstFrame: true, focused: window === global.display.focus_window,
             skipTaskbar: window.skip_taskbar, mapped: actor.mapped, minimized: window.minimized,
-            hidden: window.is_hidden(), unsetFocus: typeof global.display.unset_input_focus});
+            hidden: window.is_hidden(), unsetFocus: typeof global.display.unset_input_focus,
+            monotonicUs: GLib.get_monotonic_time()});
         if (typeof global.display.unset_input_focus === 'function')
             global.display.unset_input_focus(global.get_current_time());
         await this._capture('before-clone');
-        const clone = new Clutter.Clone({source: actor, reactive: false});
-        const container = new Clutter.Actor({reactive: false});
-        this._actors.push(container);
-        container.add_child(clone);
-        const monitor = Main.layoutManager.monitors[0];
-        container.set_position(monitor.x, monitor.y);
-        container.set_size(monitor.width, monitor.height);
-        container.set_clip(0, 0, monitor.width, monitor.height);
-        clone.set_size(monitor.width, monitor.height);
-        Main.layoutManager._backgroundGroup.add_child(container);
+        report('clone-reveal', {monotonicUs: GLib.get_monotonic_time()});
+        layer.attach(window);
+        await layer.fadeIn(0);
         await delay(300);
         await this._capture('transparent-source-clone');
         await delay(300);
         await this._capture('settled-source-clone');
+        if (recording) {
+            try {
+                await stopRecording();
+                report('recording-stopped', {monotonicUs: GLib.get_monotonic_time()});
+            } catch (error) {
+                report('capture-stop-failed', {message: error.message});
+            }
+        }
+        if (this._heartbeatId) {
+            GLib.source_remove(this._heartbeatId);
+            this._heartbeatId = 0;
+        }
+        if (GLib.getenv('T08_PRIVATE_NESTED') === '1') {
+            try {
+                const consumerReports = await verifyConsumers(window, name => this._capture(name));
+                report('consumers', {reports: consumerReports});
+            } catch (error) {
+                report('consumers-failed', {message: error.message, reports: error.reports ?? []});
+            }
+        } else {
+            report('consumers-skipped', {reason: 'T08_PRIVATE_NESTED not set'});
+        }
         Main.overview.show();
         await delay(600);
         await this._capture('overview');
@@ -180,12 +305,10 @@ export default class T08Fixture extends Extension {
             .includes(window)});
         Main.overview.hide();
         await delay(600);
-        report('clone', {mapped: clone.mapped, opacity: clone.opacity,
+        report('clone', {mapped: layer._clone?.mapped, opacity: layer._clone?.opacity,
             sourceMapped: actor.mapped, focused: window === global.display.focus_window,
             minimized: window.minimized, hidden: window.is_hidden()});
-        clone.set_source(null);
-        container.destroy();
-        this._actors = [];
+        layer.destroy();
         report('baseline', {before: baseline, after: Main.layoutManager._backgroundGroup.get_n_children()});
         await ipc.close();
         await player.stop({graceMs: 100});

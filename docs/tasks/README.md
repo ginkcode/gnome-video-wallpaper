@@ -44,6 +44,8 @@ Read first:
 | [T27](T27-compatibility.md) | Compatibility with other extensions | M7 | T14, T19, T25 | todo | |
 | [T28](T28-release.md) | README, packaging, EGO review | M7 | all | todo | |
 
+T08 verification update: delayed still handoff, overview picker exclusion, and installed Dash to Dock exclusion are evidenced in the isolated nested runner. It remains **blocked** on a native 60 fps map-flash record, real desktop-icon click routing (DING not mapped), and populated Alt+Tab switcher checks. T09 remains unstarted because T08 is not done. Verification changes are left uncommitted; T08 already has its task commit.
+
 ## Parallel tracks
 
 Tasks on different tracks can be worked on at the same time once their dependencies are met.
