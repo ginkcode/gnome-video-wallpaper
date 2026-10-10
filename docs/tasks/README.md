@@ -22,7 +22,7 @@ Read first:
 | [T05](T05-monitor-identity.md) | Monitor identity | M1 | T01 | done | haith |
 | [T06](T06-mpv-ipc.md) | mpv IPC client | M1 | T03 | done | Claude Code |
 | [T07](T07-player-process.md) | mpv player process | M1 | T03, T04 | done | Claude Code |
-| [T08](T08-background-layer.md) | Background layer (window hide + clone) | M1 | T03, T07 | todo | |
+| [T08](T08-background-layer.md) | Background layer (window hide + clone) | M1 | T03, T07 | blocked | Claude Code |
 | [T09](T09-player-manager-poc.md) | PlayerManager proof of concept | M1 | T02, T05, T06, T07, T08 | todo | |
 | [T10](T10-vo-benchmark.md) | Video output benchmark (spike) | M1 | T09 | todo | |
 | [T11](T11-media-probe.md) | Media probe (ffprobe) | M2 | T03 | todo | |

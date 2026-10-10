@@ -143,6 +143,8 @@ export class BackgroundLayer {
 ```
 Call watchWindow before spawn; the window-creation callback identifies ownership and hides the real window immediately, not in a later Promise continuation. Latch readiness even when callers attach late. Compositor first-frame readiness and mpv content readiness are separate conditions; neither wait may hang on cancellation. A GSettings write is not background-load acknowledgment: preload/display an owned still actor before dropping the old clone, retaining it until the system background is known loaded or continuing to use it underneath playback.
 
+Mutter 50 has no `make_below()` or `unset_initiator()`. Verified hiding is `windowActor.opacity = 0`, `windowActor.reactive = false`, `Meta.Window.hide_from_window_list()`, `lower()`, and `stick()`, with `Main.wm.skipNextEffect()`. `set_type(DESKTOP)` and `minimize()` are not part of the verified path: desktop windows cannot be minimized, and minimization was a no-op on the tested normal window. A permanently transparent source still paints into `Clutter.Clone` after `first-frame`. `skip_taskbar` is what Alt+Tab, Overview, workspace thumbnails, and Ubuntu Dock filter on. Native exclusion stays for the window lifetime because releasing it on layer teardown can expose a live player. Preexisting owned windows are rejected: connecting `first-frame` after they have painted does not prove before-first-paint hiding.
+
 ## `lib/mediaProbe.js` (T11) [shell + prefs]
 
 ```js
