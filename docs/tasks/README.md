@@ -22,7 +22,7 @@ Read first:
 | [T05](T05-monitor-identity.md) | Monitor identity | M1 | T01 | done | haith |
 | [T06](T06-mpv-ipc.md) | mpv IPC client | M1 | T03 | done | Claude Code |
 | [T07](T07-player-process.md) | mpv player process | M1 | T03, T04 | done | Claude Code |
-| [T08](T08-background-layer.md) | Background layer (window hide + clone) | M1 | T03, T07 | blocked | Claude Code |
+| [T08](T08-background-layer.md) | Background layer (window hide + clone) | M1 | T03, T07 | done | Claude Code |
 | [T09](T09-player-manager-poc.md) | PlayerManager proof of concept | M1 | T02, T05, T06, T07, T08 | todo | |
 | [T10](T10-vo-benchmark.md) | Video output benchmark (spike) | M1 | T09 | todo | |
 | [T11](T11-media-probe.md) | Media probe (ffprobe) | M2 | T03 | todo | |
@@ -43,8 +43,6 @@ Read first:
 | [T26](T26-spanned-wallpaper.md) | Spanned multi-monitor still | M6 | T12, T13, T25 | todo | |
 | [T27](T27-compatibility.md) | Compatibility with other extensions | M7 | T14, T19, T25 | todo | |
 | [T28](T28-release.md) | README, packaging, EGO review | M7 | all | todo | |
-
-T08 verification update: desktop-icon click routing (DING), Overview, Dash to Dock and both Alt+Tab switchers are verified in the isolated nested runner, after fixing click interception by the hidden surface and focus falling to the wallpaper. It remains **blocked** because the private screencast records at only ~32 fps. That leaves the 60 fps no-map-flash record unmet and the delayed-handoff no-flash claim snapshot-only. T09 remains unstarted because T08 is not done.
 
 ## Parallel tracks
 

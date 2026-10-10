@@ -314,12 +314,20 @@ def run(base):
               any(e.get('event') in ('fail', 'consumers-failed') for e in events) or
               not any(e.get('event') == 'complete' for e in events) or
               media['status'] == 'failed')
-    status = 'failed' if failed else ('verified' if media['status'] == 'verified' and
+    # Hidden before first paint is the no-map-flash evidence; the screencast is
+    # diagnostic only because it cannot sample every compositor frame.
+    discovery = next((e for e in events if e.get('event') == 'discovery'), {})
+    first_frame = next((e for e in events if e.get('event') == 'first-frame'), {})
+    hidden_before_paint = (discovery.get('actor') is True and discovery.get('opacity') == 0 and
+                           first_frame.get('opacity') == 0 and
+                           discovery.get('monotonicUs', 0) < first_frame.get('monotonicUs', 0))
+    status = 'failed' if failed else ('verified' if hidden_before_paint and
                                     consumers_verified else 'blocked')
     result = {'status': status, 'fixture': str(base), 'error': error,
               'shellReturncode': proc.returncode if proc else None, 'cleanup': cleanup,
               'consumerStaging': consumer_staging, 'consumers': consumers,
               'captures': captures, 'visualChecksPassed': visual, 'unfocused': unfocused,
+              'hiddenBeforePaint': hidden_before_paint,
               'handoffChecksPassed': handoff_checks_passed, 'mapFlash': media,
               'events': events}
     (base / 'result.json').write_text(json.dumps(result, indent=2))
