@@ -2,8 +2,8 @@
 
 - **Milestone:** M1
 - **Depends on:** T01
-- **Status:** todo
-- **Owner:**
+- **Status:** done
+- **Owner:** haith
 - **Skills:** GJS, GLib main loop
 
 ## Goal
@@ -25,8 +25,8 @@ Shared helpers that make leak-free `enable()/disable()` easy and logging consist
 
 ## Acceptance criteria
 
-- [ ] Disposing runs all cleanups synchronously in reverse order, disconnects signals, removes pending sources, and cancels cancellables without awaiting process reaping.
-- [ ] Safe to call `dispose()` multiple times (idempotent).
-- [ ] `sleep` and `spawnAsync` reject promptly on cancellation, and cancellation removes or kills only caller-owned work.
-- [ ] `spawnAsync(['true'])` resolves status 0; `spawnAsync(['false'])` status 1; cancellation kills the child.
-- [ ] `make test`, `make lint` pass.
+- [x] Disposing runs all cleanups synchronously in reverse order, disconnects signals, removes pending sources, and cancels cancellables without awaiting process reaping.
+- [x] Safe to call `dispose()` multiple times (idempotent).
+- [x] `sleep` and `spawnAsync` reject promptly on cancellation, and cancellation removes or kills only caller-owned work.
+- [x] `spawnAsync(['true'])` resolves status 0; `spawnAsync(['false'])` status 1; cancellation kills the child.
+- [x] `make test`, `make lint` pass.
