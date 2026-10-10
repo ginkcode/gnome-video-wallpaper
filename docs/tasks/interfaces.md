@@ -92,15 +92,17 @@ export function removeMonitorConfig(settings, id)
 export class MpvIpc {
     constructor(socketPath, logger)
     async connect({timeoutMs = 5000, cancellable})
-    async command(args, {cancellable} = {})
+    async command(args, {cancellable, assetIdentity} = {})
     async setPause(paused, {cancellable} = {})
     observe(property, callback)               // -> unsubscribe; persistent state callback(value)
     onEvent(name, callback)                   // -> unsubscribe
     async waitForContent({assetIdentity, timeoutMs, cancellable})
-    close()                                  // rejects outstanding commands/waits
+    close()                                  // async cleanup; rejects outstanding commands/waits
 }
 ```
-Subscribe before `loadfile` of the selected paused asset. Read/reconcile persistent properties (loaded path/idle state and video readiness) as well as `file-loaded`/`playback-restart` events; an event alone is not proof of readiness for the current load. `waitForContent` latches and reconciles current-load state so early events cannot be missed, rejects on timeout/close/cancellation, and never resumes playback itself. Exact paused-content evidence is an M1 feasibility test.
+Subscribe before `loadfile` of the selected paused asset. Persistent observations are latched and property reads reconcile readiness even if `file-loaded`/`playback-restart` events occurred before the wait; an event alone is not readiness proof. Timeout, cancellation, close and superseding loads reject waits promptly. Commands and waits accept caller cancellation; `close()` invalidates the client synchronously and returns a Promise for socket cleanup.
+
+`command(['loadfile', path], {assetIdentity})` associates that `PlaybackAsset.identity` with the path. The path must be the acquired private playback reference; identity is caller-supplied and is not inferred from the path. `assetIdentity` is valid only for `loadfile` with omitted or `replace` mode and is rejected otherwise. `waitForContent` matches only the latest load bearing that identity. Readiness reconciles the combination of current playlist entry, `path === load path`, `idle-active === false`, `vo-configured === true`, and positive `video-out-params`. This is decoder/VO evidence, not compositor-frame evidence, and the wait never changes `pause`. With `--vo=null`, paused load produces that evidence; a visible Wayland VO remains an M1 integration test.
 
 ## `lib/playerProcess.js` (T07) [shell]
 

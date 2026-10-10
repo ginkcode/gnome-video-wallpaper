@@ -20,7 +20,7 @@ Read first:
 | [T03](T03-core-utilities.md) | Logger and lifecycle utilities | M1 | T01 | done | haith |
 | [T04](T04-geometry.md) | Geometry (fit modes) + unit test runner | M1 | T01 | done | haith |
 | [T05](T05-monitor-identity.md) | Monitor identity | M1 | T01 | done | haith |
-| [T06](T06-mpv-ipc.md) | mpv IPC client | M1 | T03 | todo | |
+| [T06](T06-mpv-ipc.md) | mpv IPC client | M1 | T03 | done | Claude Code |
 | [T07](T07-player-process.md) | mpv player process | M1 | T03, T04 | todo | |
 | [T08](T08-background-layer.md) | Background layer (window hide + clone) | M1 | T03, T07 | todo | |
 | [T09](T09-player-manager-poc.md) | PlayerManager proof of concept | M1 | T02, T05, T06, T07, T08 | todo | |
