@@ -65,7 +65,14 @@ def stop_session(proc, runtime, pid_path, events):
             shells.add(int(value))
     shells = {pid for pid in shells if pid > 1}
     pids = {pid for pid in pids if pid > 1}
-    for pid in sorted(shells | pids):
+    services = set()
+    for name in ('pipewire', 'wireplumber'):
+        path = pid_path.parent / f'{name}.pid'
+        if path.exists() and path.read_text().strip().isdigit():
+            services.add(int(path.read_text().strip()))
+    controls = {int(event['pid']) for event in events
+                if event.get('event') == 'control-spawn' and str(event.get('pid', '')).isdigit()}
+    for pid in sorted(shells | pids | services | controls):
         t07.kill_private(pid, runtime)
     # The process group was created for this fixture, not discovered from other runs.
     if proc is not None:
@@ -238,29 +245,25 @@ def run(base):
            'T08_PRIVATE_NESTED': '1', 'T08_DESKTOP_FIXTURE': fixture,
            'T08_ASSET': str(asset), 'T08_STILL': str(still), 'T08_OUTPUT': str(base)}
     log_path, pid_path = base / 'shell.log', base / 'shell.pid'
-    proc = pipewire = None
+    proc = None
     error = None
     cleanup = {}
-    with log_path.open('wb') as log, (base / 'pipewire.log').open('wb') as pw_log:
+    wrapper = (
+        'printf "%s\\n" "$$" > "$1"\n'
+        'pipewire > "$2/pipewire.log" 2>&1 &\nprintf "%s\\n" "$!" > "$2/pipewire.pid"\n'
+        'wireplumber > "$2/wireplumber.log" 2>&1 &\nprintf "%s\\n" "$!" > "$2/wireplumber.pid"\n'
+        'sleep 1\nexec gnome-shell --headless --virtual-monitor=1024x768\n')
+    with log_path.open('wb') as log:
         try:
-            pipewire = subprocess.Popen(['pipewire'], env=env, cwd=base,
-                                        stdout=pw_log, stderr=subprocess.STDOUT)
-            time.sleep(0.5)
-            if pipewire.poll() is not None:
-                raise RuntimeError('Private PipeWire exited before Shell start')
             proc = subprocess.Popen([
-                'dbus-run-session', '--', '/bin/sh', '-c',
-                'printf "%s\\n" "$$" > "$1"; exec gnome-shell --headless --virtual-monitor=1024x768',
-                't08-shell', str(pid_path)], env=env, cwd=base, start_new_session=True,
+                'dbus-run-session', '--', '/bin/sh', '-c', wrapper, 't08-shell',
+                str(pid_path), str(base)], env=env, cwd=base, start_new_session=True,
                 stdout=log, stderr=subprocess.STDOUT)
             proc.wait(timeout=90)
         except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
             error = str(exc)
         finally:
-            try:
-                cleanup = stop_session(proc, runtime, pid_path, events_from_log(log_path))
-            finally:
-                stop_process(pipewire)
+            cleanup = stop_session(proc, runtime, pid_path, events_from_log(log_path))
     output = log_path.read_text(errors='replace')
     events = events_from_log(log_path)
     for line in output.splitlines():
@@ -303,7 +306,11 @@ def run(base):
               not green(captures.get('overview', [])) and
               green(captures.get('layer-video', [])) and
               handoff_checks_passed)
+    clone_state = next((e for e in events if e.get('event') == 'clone'), {})
+    readiness = next((e for e in events if e.get('event') == 'readiness'), {})
+    unfocused = clone_state.get('focused') is False and readiness.get('focused') is False
     failed = (error is not None or proc is None or proc.returncode != 0 or not visual or
+              not unfocused or
               any(e.get('event') in ('fail', 'consumers-failed') for e in events) or
               not any(e.get('event') == 'complete' for e in events) or
               media['status'] == 'failed')
@@ -312,7 +319,7 @@ def run(base):
     result = {'status': status, 'fixture': str(base), 'error': error,
               'shellReturncode': proc.returncode if proc else None, 'cleanup': cleanup,
               'consumerStaging': consumer_staging, 'consumers': consumers,
-              'captures': captures, 'visualChecksPassed': visual,
+              'captures': captures, 'visualChecksPassed': visual, 'unfocused': unfocused,
               'handoffChecksPassed': handoff_checks_passed, 'mapFlash': media,
               'events': events}
     (base / 'result.json').write_text(json.dumps(result, indent=2))

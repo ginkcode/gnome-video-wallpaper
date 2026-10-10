@@ -27,6 +27,17 @@ function delay(ms) {
 const logger = Object.fromEntries(['debug', 'info', 'warn', 'error'].map(level =>
     [level, (...args) => report(level, {message: args.join(' ')})]));
 
+async function waitFor(predicate, ms = 3000) {
+    const deadline = GLib.get_monotonic_time() + ms * 1000;
+    do {
+        const result = predicate();
+        if (result)
+            return result;
+        await delay(50);
+    } while (GLib.get_monotonic_time() < deadline);
+    return null;
+}
+
 export default class T08Fixture extends Extension {
     enable() {
         this._actors = [];
@@ -37,6 +48,7 @@ export default class T08Fixture extends Extension {
         this._restoreBackgroundLoad = null;
         this._restoreDockFilter = null;
         this._restoreIconClick = null;
+        this._control = null;
         this._run().catch(error => {
             this._restoreBackgroundLoad?.();
             for (const layer of this._layers)
@@ -64,6 +76,24 @@ export default class T08Fixture extends Extension {
             layer.destroy();
         for (const player of this._players)
             player.terminateNow();
+        this._control?.force_exit();
+    }
+
+    async _controlWindow() {
+        this._control = Gio.Subprocess.new(['zenity', '--info', '--text', 'T08 control window',
+            '--no-wrap'], Gio.SubprocessFlags.NONE);
+        report('control-spawn', {pid: Number(this._control.get_identifier())});
+        const deadline = GLib.get_monotonic_time() + 5000000;
+        let control = null;
+        while (!control && GLib.get_monotonic_time() < deadline) {
+            control = global.display.get_tab_list(Meta.TabList.NORMAL_ALL, null)
+                .find(candidate => candidate.get_pid() === Number(this._control.get_identifier()));
+            if (!control)
+                await delay(100);
+        }
+        if (!control)
+            throw new Error('Control window did not appear in the tab list');
+        return control;
     }
 
     async _capture(name) {
@@ -266,6 +296,8 @@ export default class T08Fixture extends Extension {
             skipTaskbar: window.skip_taskbar, mapped: actor.mapped, minimized: window.minimized,
             hidden: window.is_hidden(), unsetFocus: typeof global.display.unset_input_focus,
             monotonicUs: GLib.get_monotonic_time()});
+        const rect = window.get_frame_rect();
+        report('window-rect', {x: rect.x, y: rect.y, width: rect.width, height: rect.height});
         if (typeof global.display.unset_input_focus === 'function')
             global.display.unset_input_focus(global.get_current_time());
         await this._capture('before-clone');
@@ -290,10 +322,18 @@ export default class T08Fixture extends Extension {
         }
         if (GLib.getenv('T08_PRIVATE_NESTED') === '1') {
             try {
+                await this._controlWindow();
                 const consumerReports = await verifyConsumers(window, name => this._capture(name));
                 report('consumers', {reports: consumerReports});
             } catch (error) {
                 report('consumers-failed', {message: error.message, reports: error.reports ?? []});
+            } finally {
+                const controlPid = Number(this._control?.get_identifier());
+                this._control?.force_exit();
+                this._control = null;
+                await waitFor(() => !global.get_window_actors().some(actor =>
+                    actor.meta_window.get_pid() === controlPid), 3000);
+                report('control-closed', {pid: controlPid});
             }
         } else {
             report('consumers-skipped', {reason: 'T08_PRIVATE_NESTED not set'});

@@ -44,7 +44,7 @@ Read first:
 | [T27](T27-compatibility.md) | Compatibility with other extensions | M7 | T14, T19, T25 | todo | |
 | [T28](T28-release.md) | README, packaging, EGO review | M7 | all | todo | |
 
-T08 verification update: delayed still handoff, overview picker exclusion, and installed Dash to Dock exclusion are evidenced in the isolated nested runner. It remains **blocked** on a native 60 fps map-flash record, real desktop-icon click routing (DING not mapped), and populated Alt+Tab switcher checks. T09 remains unstarted because T08 is not done. Verification changes are left uncommitted; T08 already has its task commit.
+T08 verification update: desktop-icon click routing (DING), Overview, Dash to Dock and both Alt+Tab switchers are verified in the isolated nested runner, after fixing click interception by the hidden surface and focus falling to the wallpaper. It remains **blocked** because the private screencast records at only ~32 fps. That leaves the 60 fps no-map-flash record unmet and the delayed-handoff no-flash claim snapshot-only. T09 remains unstarted because T08 is not done.
 
 ## Parallel tracks
 

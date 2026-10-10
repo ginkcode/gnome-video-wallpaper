@@ -16,11 +16,9 @@ function call(method, parameters = null) {
 
 export async function startRecording(name) {
     const [success, filename] = await call('Screencast', new GLib.Variant('(sa{sv})', [
-        `${GLib.getenv('T08_OUTPUT')}/${name}.webm`, {
+        `${GLib.getenv('T08_OUTPUT')}/${name}`, {
             framerate: new GLib.Variant('i', 60),
             'draw-cursor': new GLib.Variant('b', false),
-            pipeline: new GLib.Variant('s',
-                'videoconvert ! vp8enc cpu-used=16 deadline=1 keyframe-max-dist=1 threads=2 ! webmmux'),
         },
     ]));
     if (!success)

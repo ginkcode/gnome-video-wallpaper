@@ -105,14 +105,19 @@ async function verifyDing(window, capture) {
     const pid = Number(process?.subprocess?.get_identifier());
     requireApi(pid && process?._waylandClient?.owns_window,
         'Installed DING process/Wayland ownership API unavailable');
-    const desktopWindows = global.get_window_actors().map(actor => actor.meta_window)
-        .filter(candidate => process._waylandClient.owns_window(candidate));
-    requireApi(desktopWindows.length, 'DING has no mapped desktop window');
+    // DING patches global.get_window_actors() to strip its own desktop, so the
+    // display list is the only complete enumeration.
+    const desktopWindows = await waitFor(() => {
+        const owned = global.display.list_all_windows()
+            .filter(candidate => process._waylandClient.owns_window(candidate) &&
+                candidate.get_compositor_private()?.mapped);
+        return owned.length ? owned : null;
+    }, 5000);
+    requireApi(desktopWindows?.length, 'DING has no mapped desktop window');
     const fixture = GLib.getenv('T08_DESKTOP_FIXTURE') ?? 't08-consumer-fixture.txt';
     let connection;
     let pointer;
     let pressed = false;
-    const [oldX, oldY] = global.get_pointer();
     try {
         try {
             connection = await accessibilityConnection();
@@ -147,8 +152,37 @@ async function verifyDing(window, capture) {
         requireApi(pointer?.notify_absolute_motion && pointer?.notify_button,
             'Virtual pointer motion/button methods unavailable');
         await capture('consumer-ding-before');
-        pointer.notify_absolute_motion(GLib.get_monotonic_time(), targetX, targetY);
+        // Virtual input is processed asynchronously, and a jump from the origin
+        // is clamped by the hot-corner barrier, so approach via the monitor
+        // centre and resend motion until the seat pointer arrives.
+        const monitor = Main.layoutManager.primaryMonitor;
+        const moveTo = (toX, toY) => waitFor(() => {
+            const [px, py] = global.get_pointer();
+            if (Math.abs(px - toX) <= 1 && Math.abs(py - toY) <= 1)
+                return true;
+            pointer.notify_absolute_motion(GLib.get_monotonic_time(), toX, toY);
+            return false;
+        }, 2000);
+        await moveTo(monitor.x + monitor.width / 2, monitor.y + monitor.height / 2);
+        const arrived = await moveTo(targetX, targetY);
+        Main.overview.hide();
+        await waitFor(() => !Main.overview.visible && !Main.overview.animationInProgress, 2000);
+        const [pointerX, pointerY] = global.get_pointer();
+        requireApi(arrived, `Virtual pointer did not reach the fixture: at ${pointerX},${pointerY}`);
         await delay(100);
+        const overviewBefore = Main.overview.visible;
+        const picked = global.stage.get_actor_at_pos(Clutter.PickMode.REACTIVE, targetX, targetY);
+        let pickedWindow = null;
+        for (let actor = picked; actor && !pickedWindow; actor = actor.get_parent())
+            pickedWindow = actor.meta_window ?? null;
+        const pick = {actor: picked?.constructor.name ?? null,
+            owner: pickedWindow === window ? 'wallpaper'
+                : pickedWindow && process._waylandClient.owns_window(pickedWindow) ? 'ding'
+                    : pickedWindow ? 'other-window' : 'shell',
+            extents, pointer: [pointerX, pointerY], overviewBefore, frames: desktopWindows.map(candidate => {
+                const rect = candidate.get_frame_rect();
+                return [rect.x, rect.y, rect.width, rect.height];
+            })};
         pointer.notify_button(GLib.get_monotonic_time(), 1, Clutter.ButtonState.PRESSED);
         pressed = true;
         await delay(60);
@@ -159,20 +193,20 @@ async function verifyDing(window, capture) {
             const name = await accessibleName(connection, icon.ref);
             return name !== icon.name && name === `${fixture} File Selected` ? name : null;
         }, 2000);
+        pick.overviewAfter = Main.overview.visible;
         await capture('consumer-ding-selected');
+        if (pick.owner === 'wallpaper')
+            throw new Error(`Wallpaper window intercepted the desktop click: ${JSON.stringify(pick)}`);
         if (!selectedName)
-            throw new Error('DING pointer click did not change the fixture accessible name to selected');
+            throw new Error(`DING click did not select the fixture: ${JSON.stringify(pick)}`);
         if (global.display.focus_window === window)
             throw new Error('Wallpaper stole focus during DING click');
-        return {pid, fixture, targetX, targetY, before: icon.name, after: selectedName,
+        return {pid, fixture, targetX, targetY, before: icon.name, after: selectedName, pick,
             desktopWindows: desktopWindows.length, evidence: 'accessible-name-selection-transition'};
     } finally {
         if (pressed)
             pointer.notify_button(GLib.get_monotonic_time(), 1, Clutter.ButtonState.RELEASED);
-        if (pointer) {
-            pointer.notify_absolute_motion(GLib.get_monotonic_time(), oldX, oldY);
-            pointer.run_dispose();
-        }
+        // run_dispose() on the native virtual device crashed Mutter; drop the reference instead.
         if (connection) {
             await new Promise(resolve => connection.close(null, (object, result) => {
                 try {
