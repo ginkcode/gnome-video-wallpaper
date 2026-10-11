@@ -3,6 +3,7 @@ import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/ex
 
 import {DiagnosticsPage} from './prefs/diagnosticsPage.js';
 import {GeneralPage} from './prefs/generalPage.js';
+import {HanabiBanner} from './prefs/hanabiBanner.js';
 import {MonitorsPage} from './prefs/monitorsPage.js';
 
 export default class GinkVideoWallpaperPreferences extends ExtensionPreferences {
@@ -14,9 +15,13 @@ export default class GinkVideoWallpaperPreferences extends ExtensionPreferences 
             new GeneralPage({settings}),
             new DiagnosticsPage({toast}),
         ];
-        for (const page of pages)
+        const hanabi = new HanabiBanner({toast});
+        for (const page of pages) {
+            hanabi.attach(page);
             window.add(page);
+        }
         window.connect('close-request', () => {
+            hanabi.close();
             for (const page of pages)
                 page.close();
             return false;

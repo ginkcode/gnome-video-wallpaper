@@ -345,6 +345,16 @@ export const GeneralPage     // Adw.PreferencesPage({settings}); close() unbinds
 export const DiagnosticsPage // Adw.PreferencesPage({toast}); refreshDependencies(), refreshSize(), clear(), close()
 ```
 
+## `lib/compat.js`, `prefs/hanabiBanner.js` (T27)
+
+```js
+export const HANABI_UUID
+export function hanabiActive({state, enabled, disabled, userExtensionsDisabled}) // numeric state wins; else settings lists [pure]
+export class HanabiWatcher { constructor({extensionManager, onChange}); enable(); disable(); active } // [shell] warns on each rising edge
+export class HanabiBanner { constructor({shellSettings, bus, toast}); attach(page) /* -> Adw.Banner */; close(); active } // [prefs]
+```
+`lib/async.js` `readLine(stream, priority, cancellable)` returns a string or null, even when GNOME Shell has already promisified `read_line_async` with the bytes finisher. Use it instead of calling `read_line_async` directly.
+
 ## Visual acceptance boundary
 
 The still and paused first frame must use the same PlaybackAsset, display geometry and SDR interpretation. Promise tested SDR perceptual continuity, not pixel identity across ffmpeg/mpv/compositor color pipelines. Record visual results for fill/fit/stretch, anamorphic SAR, rotation and tagged SDR sources. HDR remains unsupported until tone mapping has an explicit tested design.

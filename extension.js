@@ -4,6 +4,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {getLoginManager} from 'resource:///org/gnome/shell/misc/loginManager.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
+import {HanabiWatcher} from './lib/compat.js';
 import {LiveSettings} from './lib/liveSettings.js';
 import {createLogger, setDebugEnabled} from './lib/log.js';
 import {MonitorWatcher} from './lib/monitorTopology.js';
@@ -18,6 +19,8 @@ export default class GinkVideoWallpaper extends Extension {
         this._settings = this.getSettings();
         setDebugEnabled(this._settings.get_boolean('debug-logging'));
         const log = createLogger('extension');
+        this._hanabi = new HanabiWatcher({extensionManager: Main.extensionManager});
+        this._hanabi.enable();
         this._manager = new PlayerManager({settings: this._settings,
             openPreferences: () => this.openPreferences()});
         const start = () => this._manager.start().catch(error => log.error(`start failed: ${error.message}`));
@@ -60,6 +63,8 @@ export default class GinkVideoWallpaper extends Extension {
         this._pause = null;
         this._manager?.stop({restore: !isLockedSession(Main.sessionMode)});
         this._manager = null;
+        this._hanabi?.disable();
+        this._hanabi = null;
         this._settings = null;
     }
 }

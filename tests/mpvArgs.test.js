@@ -57,6 +57,7 @@ test('buildMpvArgv builds base arguments with priority prefix', () => {
         '--wayland-content-type=video',
         '--msg-level=all=warn',
         '--clipboard-backends=vo',
+        '--stop-screensaver=no',
     ];
     assertDeepEqual(argv, expected);
 });
