@@ -93,9 +93,14 @@ async function main() {
     const added = configs()[id].files;
     page.raiseFile(id, added.at(-1));
     const raised = configs()[id].files;
+    await waitFor(() => section._filesKey?.includes(JSON.stringify(raised)));
+    const expanded = section._fileRow.expanded;
+    section._fileRows[1].activate();
+    const shown = await waitFor(() => section._request?.file === raised[1] && stack() === 'picture');
+    report('pick', {expanded, shown: Boolean(shown), file: section._request?.file, expected: raised[1],
+        subtitles: section._fileRows.map(row => row.subtitle)});
     page.removeFile(id, raised[0]);
     await waitFor(() => section._filesKey?.includes(JSON.stringify(configs()[id].files)));
-    section._fileRow.expanded = true;
     await sleep(300);
     report('playlist', {added, raised, removed: configs()[id].files, rows: section._fileRows.length,
         subtitle: section._fileRow.subtitle});

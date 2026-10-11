@@ -67,9 +67,11 @@ class MonitorSection {
         if (group.mirrored)
             this.widget.set_header_suffix(this._status);
 
-        this._fileRow = new Adw.ExpanderRow({title: 'Videos', subtitle_lines: 1, title_lines: 1});
+        this._fileRow = new Adw.ExpanderRow({title: 'Videos', subtitle_lines: 1, title_lines: 1, expanded: true});
         this._fileRows = [];
         this._filesKey = null;
+        this._current = null;
+        this._shown = null;
         this._spinner = new Adw.Spinner({visible: false, valign: Gtk.Align.CENTER});
         this._remove = iconButton('user-trash-symbolic', 'Remove all videos', () => page.removeConfig(this._id));
         const choose = iconButton('list-add-symbolic', 'Add videos', () => page.choose(this._id, this._logical));
@@ -130,13 +132,26 @@ class MonitorSection {
         const current = this._page.currentFile(this._id, files);
         this._fileRow.subtitle = files.length > 1 ? `${files.length} videos · now ${basename(current)}`
             : files.length ? basename(current) : 'None';
-        this._fileRow.enable_expansion = files.length > 0;
+        const expandable = files.length > 0;
+        if (expandable && !this._fileRow.enable_expansion)
+            this._fileRow.expanded = true;
+        this._fileRow.enable_expansion = expandable;
+        if (current !== this._current || !files.includes(this._shown))
+            this._shown = current;
+        this._current = current;
         this._updateFileRows(files, current);
         this._status.label = member.effective ? 'In use' : config ? 'Not used' : '';
         const geometry = config ? targetGeometry(this._logical, config.fitMode ?? defaultFit) : null;
         if (config)
             this._page.refreshOptimized(this._id, {files, geometry, optimize: this._page.optimizeEnabled(config)});
-        this._showPreview(config ? {file: current, geometry, optimize: this._page.optimizeEnabled(config)} : null);
+        this._showPreview(config ? {file: this._shown, geometry, optimize: this._page.optimizeEnabled(config)} : null);
+    }
+
+    _show(file) {
+        if (file === this._shown || !this._request)
+            return;
+        this._shown = file;
+        this._showPreview({...this._request, file});
     }
 
     _updateFileRows(files, current) {
@@ -146,11 +161,19 @@ class MonitorSection {
         this._filesKey = key;
         for (const row of this._fileRows)
             this._fileRow.remove(row);
+        let group = null;
         this._fileRows = files.map((file, index) => {
-            const row = new Adw.ActionRow({title: basename(file), tooltip_text: file, title_lines: 1});
-            const playing = new Gtk.Image({icon_name: 'media-playback-start-symbolic',
-                tooltip_text: 'Current video', opacity: file === current && files.length > 1 ? 1 : 0});
-            row.add_prefix(playing);
+            const row = new Adw.ActionRow({title: basename(file), tooltip_text: file, title_lines: 1,
+                subtitle: file === current && files.length > 1 ? 'Now playing' : ''});
+            const check = new Gtk.CheckButton({valign: Gtk.Align.CENTER, active: file === this._shown,
+                tooltip_text: 'Show preview', group, visible: files.length > 1});
+            group ??= check;
+            check.connect('toggled', () => {
+                if (check.active)
+                    this._show(file);
+            });
+            row.add_prefix(check);
+            row.activatable_widget = check;
             const raise = iconButton('go-up-symbolic', 'Play earlier', () => this._page.raiseFile(this._id, file));
             raise.sensitive = index > 0;
             row.add_suffix(raise);

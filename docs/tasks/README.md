@@ -46,6 +46,7 @@ Read first:
 | [T29](T29-panel-indicator.md) | Top bar indicator (Play/Pause, Preferences) | M7 | T20, T22 | review | Claude Code |
 | [T30](T30-playlists.md) | Video playlists with timed rotation | M7 | T21, T22, T24, T29 | review | Claude Code |
 | [T31](T31-workspace-switch.md) | Workspace switching with open windows | M7 | T08, T27 | review | Claude Code |
+| [T32](T32-video-list-preview.md) | Video list preview selection | M7 | T30 | review | Claude Code |
 
 ## Parallel tracks
 
