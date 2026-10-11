@@ -219,6 +219,67 @@ test('startup order: still, watch before spawn, subscribe, paused load, both rea
     await drainReaps(fixture);
 });
 
+function aggregateEnv(fixture) {
+    const env = fixture.env();
+    const resolve = env.resolveTargets;
+    env.resolveTargets = async options => ({targets: await resolve(options), layout: {
+        width: 20, height: 10, rasterScale: 1.5, rectangles: fixture.keys.map((key, i) =>
+            ({key, x: i * 10, y: 0, width: 10, height: 10}))}});
+    env.composeSpanned = (stills, _canvas, cancellable) => {
+        fixture.components = stills;
+        return fixture.gate('compose', cancellable, '/spanned.png');
+    };
+    env.applyWallpaper = (path, options) => fixture.log.push(`aggregate:${options}:${path}`);
+    return env;
+}
+
+test('aggregate is prepared, composed, published and applied before any handoff', async () => {
+    const fixture = new Fixture();
+    fixture.keys = ['A', 'B'];
+    const manager = new PlayerManagerLifecycle({env: aggregateEnv(fixture), logger: quiet, fadeMs: 0});
+    await manager.start();
+    assertEqual(fixture.components.length, 2);
+    assertEqual(fixture.components.every(still => still.path.startsWith('/wallpapers') && still.identity), true);
+    assertEqual(fixture.log.indexOf('compose') > fixture.log.lastIndexOf('still'), true);
+    assertEqual(fixture.log.indexOf('aggregate:spanned:/wallpapers/spanned.png') < fixture.log.indexOf('static'), true);
+    manager.stop();
+    await drainReaps(fixture);
+});
+
+for (const boundary of ['compose', 'aggregate-publish']) {
+    test(`stop at ${boundary} discards the aggregate and releases all prepared assets`, async () => {
+        const fixture = new Fixture({held: new Set([boundary])});
+        fixture.keys = ['A', 'B'];
+        const env = aggregateEnv(fixture);
+        const publish = env.publishWallpaper;
+        env.publishWallpaper = (path, cancellable) => path === '/spanned.png'
+            ? fixture.gate('aggregate-publish', cancellable, '/wallpapers/spanned.png') : publish(path, cancellable);
+        const manager = new PlayerManagerLifecycle({env, logger: quiet});
+        const starting = manager.start();
+        await fixture.reached(boundary);
+        manager.stop();
+        fixture.release(boundary);
+        await starting;
+        await drainReaps(fixture);
+        assertEqual(fixture.processes.length, 0);
+        assertEqual(fixture.acquired.length, 0);
+        assertEqual(fixture.log.some(entry => entry.startsWith('aggregate:')), false);
+    });
+}
+
+test('composition failure preserves the previous wallpaper while playback starts', async () => {
+    const fixture = new Fixture();
+    fixture.keys = ['A', 'B'];
+    const env = aggregateEnv(fixture);
+    env.composeSpanned = () => Promise.reject(new Error('composition failed'));
+    const manager = new PlayerManagerLifecycle({env, logger: quiet, fadeMs: 0});
+    await manager.start();
+    assertEqual(fixture.processes.length, 2);
+    assertEqual(fixture.log.some(entry => entry.startsWith('aggregate:')), false);
+    manager.stop();
+    await drainReaps(fixture);
+});
+
 test('two pause reasons resume only when both are cleared', async () => {
     const fixture = new Fixture();
     const manager = fixture.manager();
@@ -536,7 +597,7 @@ test('players start sequentially with the stagger between them', async () => {
     };
     const manager = new PlayerManagerLifecycle({env, logger: quiet, fadeMs: 0});
     await manager.start();
-    assertEqual(fixture.log.indexOf('fade') < fixture.log.lastIndexOf('probe'), true, 'second after first fade');
+    assertEqual(fixture.log.lastIndexOf('probe') < fixture.log.indexOf('spawn'), true, 'all assets prepared before spawning');
     assertEqual((spawns[1] - spawns[0]) / 1000 >= 39, true, 'staggered spawn');
     assertEqual(fixture.log.some(entry => entry.startsWith('apply:')), false, 'no single-monitor apply');
     assertEqual(manager.getState('A'), PlayerState.PLAYING);

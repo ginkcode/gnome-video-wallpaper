@@ -3,7 +3,7 @@ import GLib from 'gi://GLib';
 
 import {sleep} from '../lib/async.js';
 import {findProgram} from '../lib/deps.js';
-import {FitMode, TRANSFORM_VERSION} from '../lib/geometry.js';
+import {FitMode, TRANSFORM_VERSION, computeCanvas} from '../lib/geometry.js';
 import {probe} from '../lib/mediaProbe.js';
 import {assertEqual, run, test} from './harness.js';
 
@@ -12,7 +12,7 @@ GLib.setenv('XDG_CACHE_HOME', `${root}/cache`, true);
 GLib.setenv('XDG_DATA_HOME', `${root}/data`, true);
 const cache = await import('../lib/stillCache.js');
 const {
-    CacheError, acquirePlaybackAsset, cacheRoot, clearCache, ensureStill, publishWallpaper,
+    CacheError, acquirePlaybackAsset, cacheRoot, clearCache, composeSpanned, ensureStill, publishWallpaper,
     releasePlaybackAsset, stillFilter, wallpaperDir,
 } = cache;
 
@@ -37,10 +37,10 @@ function encode(name, input, args = []) {
     return path;
 }
 
-function pixel(path) {
+function pixel(path, x = 0, y = 0) {
     const raw = `${root}/pixel.rgb`;
     spawn(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-i', path, '-frames:v', '1',
-        '-vf', 'crop=1:1:0:0', '-f', 'rawvideo', '-pix_fmt', 'rgb24', raw]);
+        '-vf', `crop=1:1:${x}:${y}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24', raw]);
     return [...GLib.file_get_contents(raw)[1]];
 }
 
@@ -91,6 +91,86 @@ async function expectCancelled(promise) {
 if (ffmpeg && findProgram('ffprobe')) {
     const source = encode('wide.mp4', 'testsrc2=size=96x48:rate=10:duration=1');
     const media = await probe(source);
+
+    test('spanned pixels use common scale, translated shared edges and black uncovered canvas', async () => {
+        const assets = [];
+        try {
+            const stills = [];
+            for (const [key, color] of [['left', 'red'], ['right', 'lime']]) {
+                const source = encode(`${key}.mp4`, `color=c=${color}:s=16x16:r=1:d=1`);
+                const asset = await acquirePlaybackAsset(await probe(source), geometry(FitMode.STRETCH, 16, 16));
+                assets.push(asset);
+                stills.push({key, path: await ensureStill(asset), identity: asset.identity});
+            }
+            const canvas = computeCanvas([
+                {key: 'left', x: -5, y: -2, width: 5, height: 4},
+                {key: 'right', x: 0, y: -2, width: 3, height: 6},
+                {key: 'unconfigured', x: 3, y: -2, width: 2, height: 3},
+            ], 1.5);
+            assertEqual(canvas.rasterScale, 1.5);
+            const first = await composeSpanned(stills, canvas);
+            assertEqual(size(first), '15x9');
+            const edge = canvas.rectangles[1].x;
+            assertEqual(pixel(first, edge - 1, 1)[0] > 200, true, 'last left pixel');
+            assertEqual(pixel(first, edge, 1)[1] > 200, true, 'first right pixel');
+            assertEqual(pixel(first, 14, 8).join(), '0,0,0', 'uncovered black');
+            assertEqual(await composeSpanned([...stills].reverse(), canvas), first, 'ordered identity');
+            assertEqual(await composeSpanned(stills, {...canvas, transformVersion: 2}) !== first, true, 'version');
+            assertEqual(await composeSpanned(stills.map(s => ({...s, identity: `${s.identity}:new`})), canvas) !== first,
+                true, 'exact asset identity');
+            await clearCache();
+            const published = await publishWallpaper(first);
+            assertEqual(size(published), '15x9', 'regeneration after clear');
+            await clearCache();
+            assertEqual(exists(published), true, 'published composite retained');
+            const cancel = new Gio.Cancellable();
+            const changed = {...canvas, transformVersion: 3};
+            const pending = composeSpanned(stills, changed, cancel);
+            const survivor = composeSpanned(stills, changed);
+            await sleep(5);
+            cancel.cancel();
+            await expectCancelled(pending);
+            assertEqual(size(await survivor), '15x9', 'shared survivor');
+            const solo = new Gio.Cancellable();
+            const abandoned = composeSpanned(stills, {...canvas, transformVersion: 4}, solo);
+            await sleep(5);
+            solo.cancel();
+            await expectCancelled(abandoned);
+            await sleep(200);
+            assertEqual(list(`${cacheRoot()}/jobs`).length, 0, 'cancelled composite jobs cleaned');
+            const other = await import('../lib/stillCache.js?composite=independent');
+            const fresh = {...canvas, transformVersion: 5};
+            const [a, b] = await Promise.all([composeSpanned(stills, fresh), other.composeSpanned(stills, fresh)]);
+            assertEqual(a, b, 'independent atomic producers');
+            assertEqual(size(a), '15x9');
+        } finally {
+            await Promise.all(assets.map(releasePlaybackAsset));
+        }
+    });
+
+    test('unconfigured rectangles honor original zoom, scaled, centered, stretched, wallpaper and spanned', async () => {
+        const original = `${root}/original.png`;
+        spawn(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i',
+            'color=c=blue:s=4x2', '-frames:v', '1', original]);
+        const canvas = computeCanvas([{key: 'a', x: 0, y: 0, width: 8, height: 8},
+            {key: 'b', x: 8, y: 0, width: 8, height: 8}], 1);
+        const paths = new Set();
+        for (const options of ['zoom', 'scaled', 'centered', 'stretched', 'wallpaper', 'spanned', 'none']) {
+            const path = await composeSpanned([], {...canvas, original: {
+                uri: Gio.File.new_for_path(original).get_uri(), options}});
+            paths.add(path);
+            const center = pixel(path, 4, 4);
+            const corner = pixel(path);
+            assertEqual(center[2] > 200, options !== 'none', `${options} center`);
+            assertEqual(corner[2] > 200, !['scaled', 'centered', 'none'].includes(options), `${options} corner`);
+        }
+        assertEqual(paths.size, 7, 'original options join identity');
+        const originalCanvas = {...canvas, original: {uri: Gio.File.new_for_path(original).get_uri(), options: 'zoom'}};
+        const before = await composeSpanned([], originalCanvas);
+        GLib.usleep(10000);
+        spawn(['touch', original]);
+        assertEqual(await composeSpanned([], originalCanvas) !== before, true, 'original stat joins identity');
+    });
 
     test('stills match the raster geometry for fill, fit and stretch', async () => {
         for (const mode of [FitMode.FILL, FitMode.FIT, FitMode.STRETCH]) {

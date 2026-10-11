@@ -2,8 +2,8 @@
 
 - **Milestone:** M6
 - **Depends on:** T12, T13, T25
-- **Status:** todo
-- **Owner:**
+- **Status:** review
+- **Owner:** Claude Code
 - **Skills:** ffmpeg filter graphs
 
 ## Goal
@@ -22,8 +22,16 @@ With different videos per monitor, the system wallpaper (login, lock, Overview) 
 ## Acceptance criteria
 
 - [ ] Two monitors with different videos: lock screen and Overview show each still on its own monitor, aligned with the video handoff.
-- [ ] Arrangement changes regenerate the composite.
-- [ ] Single monitor still uses non-spanned path.
-- [ ] Spanned canvas shared edges with mixed 100%/150% scales align with no seams, gaps, or overlapping pixels; tests record the selected common raster scale and cover negative origins, unequal heights and rotated rectangles.
-- [ ] Mirrored monitors compose exactly once onto the shared logical rectangle.
-- [ ] Cache clear does not remove the active published spanned wallpaper.
+- [x] Arrangement changes regenerate the composite.
+- [x] Single monitor still uses non-spanned path.
+- [x] Spanned canvas shared edges with mixed 100%/150% scales align with no seams, gaps, or overlapping pixels; tests record the selected common raster scale and cover negative origins, unequal heights and rotated rectangles.
+- [x] Mirrored monitors compose exactly once onto the shared logical rectangle.
+- [x] Cache clear does not remove the active published spanned wallpaper.
+
+## Verification — 2026-10-11
+
+- `make test` and `make lint` pass. Unit coverage includes translated negative origins, unequal/rotated logical rectangles, maximum common 150% scale and adjacent edge pixels, black gaps, original zoom/scaled/centered/stretched/tiled/spanned/none options, identity/version changes, shared cancellation, composite regeneration after cache clear and persistent publication survival. Lifecycle tests cover all-assets-first ordering, composition/publication cancellation, and composition failure with continuing playback.
+- `python3 -I tests/integration/run-t26-nested.py ` passes (twice) all 15 checks in private headless GNOME Shell 50 with two virtual monitors. The driver decodes the applied published PNG with ffmpeg and checks dimensions/monitor centre and edge colours, spanned options, stacked arrangement regeneration, mixed 100%/150% scale, rotation, original-wallpaper fallback, mirrored single rectangle/zoom, single-monitor zoom, cache-clear/restore publication survival and clean disable. No fixture processes survive or shell errors are reported.
+- Regression commands: `python3 -I tests/integration/run-t25-nested.py --quick` passes. `python3 -I tests/integration/run-t24-nested.py` passed in three sequential runs. One run made while another nested shell was running at the same time failed its `changeHandsOff` and `removeRestores` wallpaper-URI checks, with no shell or driver errors and correct player transitions; the cause was not isolated.
+
+Limitations: no real-session install, lock-screen/Overview visual check, physical hotplug, or real mixed-scale hardware validation. The lock-screen/Overview acceptance criterion remains a manual check. Published wallpaper GC remains deferred.

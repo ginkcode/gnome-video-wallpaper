@@ -192,7 +192,9 @@ export async function publishWallpaper(stillPath, cancellable)
 // acquire a private input reference first; retry/regenerate if clear-cache raced acquisition
 export async function composeSpanned(stills /* [{path, key}] */, canvas, cancellable)
 // -> completed PNG path using computeCanvas rectangles (T26)
-// cache identity includes ordered canvas mapping, component still identities and transformVersion
+// optional still.identity carries the exact PlaybackAsset identity; path/stat also join cache identity
+// canvas.original = {uri, options} supplies the saved original for unconfigured rectangles (else black)
+// cache identity includes ordered canvas mapping, common scale, transforms/version and original source stat/options
 export async function clearCache(cancellable)
 // -> {removedBytes, preservedActiveBytes, preservedWallpaperBytes}
 export async function cacheSize()            // -> bytes under the cache root; hard links counted once (T22)
@@ -223,6 +225,7 @@ export class WallpaperSync {
     restore()                                // also refuses later apply() on this instance
     destroy()                                // disconnects; does not restore
     get isApplied()
+    get original()                           // -> {uri, options}; saved original while applied, current otherwise
 }
 export function isPublishedUri(uri)          // file URI of <wallpaperDir>/<sha256>.png
 ```
@@ -247,7 +250,7 @@ One live player per logical monitor, including replacements. Startup: acquire se
 
 Replacement: prepare and display replacement still over old video → remove old clone → stop/reap old player → spawn/fade replacement. Bounded graceful stop is permitted for live replacement; serialize all starts with outstanding reaping, including rapid disable/re-enable. Disable synchronously increments generation, cancels waits/fades/retries, destroys actors/disconnects signals and immediately requests forceful termination. No grace timer may later touch extension state; residual reap owns only its old process/socket. Generation checks prevent stale work from spawning, publishing settings or touching a new lifecycle.
 
-T14: starts and reconciles are serialized, and a reconcile with an unchanged selection is a no-op. A failed or timed-out start terminates the player but keeps the layer showing the still; T16 supervises retries. The system wallpaper is applied only with one logical monitor until T26. Disable does not restore the wallpaper until T17.
+T14: starts and reconciles are serialized, and a reconcile with an unchanged selection is a no-op. A failed or timed-out start terminates the player but keeps the layer showing the still; T16 supervises retries. T26 prepares changed assets/stills before applying the aggregate system wallpaper, then performs serialized handoffs. Composition failure keeps the previous system wallpaper without blocking playback. Disable does not restore the wallpaper until T17.
 
 T16 supervision: a crash or transient failure triggers a retry after `2s, 8s, 30s`. Failures within 10 minutes count toward `max-retries`; reaching it blocks the monitor. Errors classified as permanent (`ProbeError`, or `CacheError` other than `SOURCE_CHANGED`/`STILL_MISSING`) block at once. A blocked monitor keeps its still and gets one notification, and stays blocked until its selection changes or the extension is re-enabled. 60 s of healthy playback clears the failure count. Optional constructor overrides: `backoffMs`, `failureWindowMs`, `healthyMs`. Optional env hooks: `classify(error)`, `maxRetries()`, `notify(key, message)`. `PlayerManager` accepts `openPreferences` for the notification action.
 
@@ -261,7 +264,10 @@ T24: `selectionKey` includes source/optimized size and mtime, target geometry, p
 
 ```js
 export function planTargets(topology, configs, {defaultFitMode, optimizeVideos, vo, monitorIndexFor, logger})
-// -> targets with physical selection, placement, raster geometry and single-monitor wallpaper policy
+// -> targets with physical selection, placement and raster geometry
+export function planWallpaper(topology)
+// -> null for fewer than two logical monitors, else computeCanvas at maximum logical scale
+//    plus transformVersion and ordered [key, transform] records; includes unconfigured rectangles
 export function selectionKey(plan, asset) // selected bytes/geometry/VO plus placement and layout index
 export class MonitorWatcher {
     constructor({sources, onChange, debounceMs = 1000, logger})
@@ -269,7 +275,11 @@ export class MonitorWatcher {
     disable()
 }
 ```
-The shell watches both `Main.layoutManager` and `global.backend.get_monitor_manager()` `monitors-changed` signals. A generation-guarded one-second debounce requests serialized reconciliation; disable disconnects signals and cancels the timer. Temporarily unindexed logical monitors are skipped until layout settles.
+The shell watches both `Main.layoutManager` and `global.backend.get_monitor_manager()` `monitors-changed` signals. A generation-guarded one-second debounce requests serialized reconciliation; disable disconnects signals and cancels the timer. Temporarily unindexed logical monitors are skipped until layout settles. T26's shell resolver returns
+`{targets, layout: planWallpaper(topology)}`; the injected lifecycle resolver still accepts legacy target arrays.
+The lifecycle uses `env.composeSpanned(stills, layout, cancellable)` and `env.applyWallpaper(path, options)`:
+spanned for at least two logical monitors, zoom for one. `env.originalWallpaper(cancellable)` optionally
+supplies an original-source/stat identity for unchanged-layout reconciliation.
 
 ## `lib/liveSettings.js` (T24) [shell-safe, Gio/GLib]
 

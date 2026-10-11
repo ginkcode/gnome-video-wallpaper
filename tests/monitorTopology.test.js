@@ -2,7 +2,7 @@ import Gio from 'gi://Gio';
 
 import {sleep} from '../lib/async.js';
 import {parseDisplayConfigState} from '../lib/monitorIdentity.js';
-import {MONITOR_SIGNAL, MonitorWatcher, planTargets, selectionKey} from '../lib/monitorTopology.js';
+import {MONITOR_SIGNAL, MonitorWatcher, planTargets, planWallpaper, selectionKey} from '../lib/monitorTopology.js';
 import {assertDeepEqual, assertEqual, run, test} from './harness.js';
 
 const quiet = {debug() {}, info() {}, warn() {}, error() {}};
@@ -37,7 +37,6 @@ test('every configured logical monitor becomes a target in sorted key order', ()
     assertEqual(external.monitorIndex, 1);
     assertEqual(external.optimize, true);
     assertEqual(external.vo, 'gpu-next');
-    assertEqual(external.systemWallpaper, false);
     assertDeepEqual(external.placement, {x: 1920, y: 0, width: 960, height: 1707, scale: 1.5, transform: 1});
     assertDeepEqual(external.geometry, {width: 1440, height: 2561, scale: 1.5, fitMode: 'fit', transformVersion: 1});
     assertEqual(laptop.monitorIndex, 0);
@@ -62,7 +61,6 @@ test('mirrored connectors share one target from the first configured sorted conn
     assertEqual(both.length, 1);
     assertEqual(both[0].logicalMonitorKey, 'HDMI-1|HDMI-2');
     assertEqual(both[0].selectedPhysicalMonitorId, a);
-    assertEqual(both[0].systemWallpaper, true);
     const onlyB = planTargets(topology, {[b]: config('/b.mp4')}, options());
     assertEqual(onlyB[0].selectedPhysicalMonitorId, b);
     assertEqual(onlyB[0].file, '/b.mp4');
@@ -85,6 +83,19 @@ test('selection key changes with position, index, scale and rotation but raster 
     assertEqual(selectionKey({...plan, vo: 'auto'}, ['asset']) !== selectionKey(plan, ['asset']), true, 'vo');
     assertEqual(selectionKey({...plan, systemWallpaper: true}, ['asset']), selectionKey(plan, ['asset']),
         'becoming the only monitor does not restart its player');
+});
+
+test('wallpaper planner includes unconfigured, negative, rotated and mirrored logical rectangles', () => {
+    const topology = loadFixture('display-state-mixed.json');
+    const canvas = planWallpaper(moved(topology, 'eDP-1', {x: -1920, y: -500}));
+    assertEqual(canvas.rasterScale, 1.5, 'maximum logical scale');
+    assertEqual(canvas.originX, -1920);
+    assertEqual(canvas.originY, -500);
+    assertEqual(canvas.rectangles.length, 2);
+    assertEqual(canvas.rectangles[0].width, 1440, 'rotated logical width');
+    assertEqual(canvas.rectangles[0].height, 2561, 'unequal height');
+    assertEqual(planWallpaper(loadFixture('display-state-mirrored.json')), null, 'mirror is single logical');
+    assertEqual(planWallpaper(loadFixture('display-state-edp1.json')), null);
 });
 
 class FakeSource {
