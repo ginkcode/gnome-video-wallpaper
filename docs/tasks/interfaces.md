@@ -314,6 +314,16 @@ T19: the shell wrapper delegates to `lib/coverageController.js` [pure, injected]
 
 T20: `lib/sessionPauseController.js` [pure, injected] `SessionPauseController({playerManager, settings, overview, createBatteryProxy})` sets the `overview` reason (`pause-on-overview` and `overview.visible`) and the `battery` reason (`pause-on-battery` and UPower `OnBattery`) for every target key. `PlayerManager` env hook `waitForPaintable({cancellable})` delays the first-frame wait while the Overview hides the window group. `lib/async.js` gains `waitUntil(object, signal, isReady, cancellable)`.
 
+## `lib/userPauseController.js`, `lib/panelIndicator.js` (T29)
+
+```js
+export const USER = 'user';
+export class UserPauseController { constructor({playerManager, settings, logger}); enable(); disable() } // [pure, injected]
+export class PanelIndicator { constructor({uuid, settings, openPreferences}); enable(); disable() }      // [shell]
+```
+
+`UserPauseController` sets the `user` reason on every target key from the `paused` key and reapplies it on each `onTargets()` resolution. `PanelIndicator` adds a `PanelMenu.Button` while `show-panel-indicator` is true. Its toggle item flips `paused`; its Preferences item calls `openPreferences`.
+
 ## `lib/startupGate.js` (T15) [shell]
 
 ```js

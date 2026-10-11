@@ -43,6 +43,7 @@ Read first:
 | [T26](T26-spanned-wallpaper.md) | Spanned multi-monitor still | M6 | T12, T13, T25 | review | Claude Code |
 | [T27](T27-compatibility.md) | Compatibility with other extensions | M7 | T14, T19, T25 | review | Claude Code |
 | [T28](T28-release.md) | README, packaging, EGO review | M7 | all | todo | |
+| [T29](T29-panel-indicator.md) | Top bar indicator (Play/Pause, Preferences) | M7 | T20, T22 | review | Claude Code |
 
 ## Parallel tracks
 

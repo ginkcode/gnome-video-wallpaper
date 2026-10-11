@@ -58,6 +58,18 @@
       <description>Pause players while running on battery power.</description>
     </key>
 
+    <key name="paused" type="b">
+      <default>false</default>
+      <summary>Paused by the user</summary>
+      <description>Pause every player until the user resumes playback.</description>
+    </key>
+
+    <key name="show-panel-indicator" type="b">
+      <default>true</default>
+      <summary>Show panel indicator</summary>
+      <description>Show a top bar menu with Play/Pause and Preferences.</description>
+    </key>
+
     <key name="optimize-videos" type="b">
       <default>false</default>
       <summary>Optimize videos</summary>

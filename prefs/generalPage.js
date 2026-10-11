@@ -34,6 +34,10 @@ class GeneralPage extends Adw.PreferencesPage {
         pause.add(this._switch('pause-on-battery', 'On battery power'));
         this.add(pause);
 
+        const panel = new Adw.PreferencesGroup({title: 'Top Bar'});
+        panel.add(this._switch('show-panel-indicator', 'Show menu', 'Play/Pause and Preferences in the top bar'));
+        this.add(panel);
+
         const playback = new Adw.PreferencesGroup({title: 'Playback'});
         const fit = choiceRow('Default fit mode', 'Used by displays without their own fit mode', FIT_MODES);
         this._unbinds.push(bindChoice(settings, 'default-fit-mode', fit, FIT_MODES.map(([nick]) => nick)));

@@ -8,10 +8,12 @@ import {HanabiWatcher} from './lib/compat.js';
 import {LiveSettings} from './lib/liveSettings.js';
 import {createLogger, setDebugEnabled} from './lib/log.js';
 import {MonitorWatcher} from './lib/monitorTopology.js';
+import {PanelIndicator} from './lib/panelIndicator.js';
 import {PauseController} from './lib/pauseController.js';
 import {PlayerManager} from './lib/playerManager.js';
 import {isLockedSession, watchSleep} from './lib/sessionLifecycle.js';
 import {optimizedDir} from './lib/transcoder.js';
+import {UserPauseController} from './lib/userPauseController.js';
 
 export default class GinkVideoWallpaper extends Extension {
     enable() {
@@ -36,6 +38,11 @@ export default class GinkVideoWallpaper extends Extension {
         });
         this._pause = new PauseController({playerManager: this._manager, settings: this._settings});
         this._pause.enable();
+        this._userPause = new UserPauseController({playerManager: this._manager, settings: this._settings});
+        this._userPause.enable();
+        this._indicator = new PanelIndicator({uuid: this.uuid, settings: this._settings,
+            openPreferences: () => this.openPreferences()});
+        this._indicator.enable();
         const reconcile = () => {
             if (this._manager?.started)
                 this._manager.reconcile().catch(error => log.error(`reconcile failed: ${error.message}`));
@@ -59,6 +66,10 @@ export default class GinkVideoWallpaper extends Extension {
         this._unwatchSleep = null;
         this._live?.disable();
         this._live = null;
+        this._indicator?.disable();
+        this._indicator = null;
+        this._userPause?.disable();
+        this._userPause = null;
         this._pause?.disable();
         this._pause = null;
         this._manager?.stop({restore: !isLockedSession(Main.sessionMode)});
