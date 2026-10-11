@@ -85,11 +85,13 @@ Mirrored connectors map to the same logical monitor index.
 ## `lib/config.js` (T02) [pure]
 
 ```js
-export function readMonitorConfigs(settings)          // -> {[physicalMonitorId]: {file, fitMode, optimize}}
+export function readMonitorConfigs(settings)          // -> {[physicalMonitorId]: {file, files, fitMode, optimize}}
 export function writeMonitorConfig(settings, id, cfg)
 export function removeMonitorConfig(settings, id)
 export function selectConfigured(connectors, physicalMonitors, configs) // -> {physical, config}|null; sorted connectors
 ```
+
+T30: `files` is a non-empty list of absolute paths without duplicates, and `file === files[0]`. Input may give `files` or only `file`; `files` wins when both are present.
 
 ## `lib/mpvIpc.js` (T06) [shell-safe, Gio only]
 
@@ -319,10 +321,24 @@ T20: `lib/sessionPauseController.js` [pure, injected] `SessionPauseController({p
 ```js
 export const USER = 'user';
 export class UserPauseController { constructor({playerManager, settings, logger}); enable(); disable() } // [pure, injected]
-export class PanelIndicator { constructor({uuid, settings, openPreferences}); enable(); disable() }      // [shell]
+export class PanelIndicator { constructor({uuid, settings, openPreferences, next}); enable(); disable() } // [shell]
 ```
 
 `UserPauseController` sets the `user` reason on every target key from the `paused` key and reapplies it on each `onTargets()` resolution. `PanelIndicator` adds a `PanelMenu.Button` while `show-panel-indicator` is true. Its toggle item flips `paused`; its Preferences item calls `openPreferences`.
+
+## `lib/playlist.js` (T30) [shell-safe, GLib]
+
+```js
+export function nextIndex(index, count, order, random = Math.random) // sequential wraps; random never repeats
+export class Playlist {
+    constructor({settings, onChange, random, minuteMs = 60000, logger})
+    enable(); disable()
+    fileFor(physicalMonitorId, files)  // current file; resumes from playlist-state, keeps it across list edits
+    advance()                          // -> boolean; moves every multi-file playlist, persists, calls onChange
+}
+```
+
+`planTargets(topology, configs, {..., fileFor})` uses `fileFor(physicalMonitorId, config)` (default `config.file`). `PlayerManager({settings, openPreferences, fileFor})` passes `fileFor(id, config.files)`. The timer runs every `playlist-interval-minutes` and skips while `paused`. Prefs `applySelection({files, added = files, ...})` probes and prepares only `added`, then writes `files`. `editPlaylist(files, {add, remove, raise})` is pure.
 
 ## `lib/startupGate.js` (T15) [shell]
 

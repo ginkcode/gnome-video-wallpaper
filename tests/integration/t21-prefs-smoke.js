@@ -69,25 +69,36 @@ async function main() {
 
     const sar = `${mediaDir}/sar.mp4`;
     maxGap = 0;
-    await page.select(id, logical, sar);
+    await page.select(id, logical, [sar]);
     const preview = await waitFor(() => stack() === 'picture');
     report('select', {config: configs()[id], subtitle: section._fileRow.subtitle, preview, stack: stack(),
         toasts: [...toasts]});
 
     for (const bad of [`${mediaDir}/hdr.mp4`, `${mediaDir}/notes.txt`, `${mediaDir}/missing.mp4`]) {
         const before = JSON.stringify(configs());
-        await page.select(id, logical, bad);
+        await page.select(id, logical, [bad]);
         report('invalid', {file: bad, unchanged: JSON.stringify(configs()) === before, toast: toasts.at(-1)});
     }
 
     toasts.length = 0;
     const rapid = [`${mediaDir}/rot.mp4`, `${mediaDir}/plain.mp4`, sar, `${mediaDir}/rot.mp4`].map(file =>
-        page.select(id, logical, file));
+        page.select(id, logical, [file]));
     section._fitRow.selected = 2;
     section._fitRow.selected = 3;
     await Promise.all(rapid);
     const settled = await waitFor(() => stack() === 'picture' && page._jobs.pending === 0);
     report('rapid', {config: configs()[id], settled, toasts: [...toasts], maxGapMs: Math.round(maxGap)});
+
+    await page.select(id, logical, [`${mediaDir}/plain.mp4`, `${mediaDir}/rot.mp4`]);
+    const added = configs()[id].files;
+    page.raiseFile(id, added.at(-1));
+    const raised = configs()[id].files;
+    page.removeFile(id, raised[0]);
+    await waitFor(() => section._filesKey?.includes(JSON.stringify(configs()[id].files)));
+    section._fileRow.expanded = true;
+    await sleep(300);
+    report('playlist', {added, raised, removed: configs()[id].files, rows: section._fileRows.length,
+        subtitle: section._fileRow.subtitle});
 
     const [, natural] = page.measure(Gtk.Orientation.HORIZONTAL, -1);
     const [minimum] = window.measure(Gtk.Orientation.HORIZONTAL, -1);

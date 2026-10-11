@@ -12,6 +12,11 @@
     <value nick="dmabuf-wayland" value="2"/>
   </enum>
 
+  <enum id="org.gnome.shell.extensions.gink-video-wallpaper.PlaylistOrder">
+    <value nick="sequential" value="0"/>
+    <value nick="random" value="1"/>
+  </enum>
+
   <schema id="org.gnome.shell.extensions.gink-video-wallpaper"
           path="/org/gnome/shell/extensions/gink-video-wallpaper/">
     <key name="monitor-configs" type="s">
@@ -56,6 +61,25 @@
       <default>true</default>
       <summary>Pause on battery</summary>
       <description>Pause players while running on battery power.</description>
+    </key>
+
+    <key name="playlist-interval-minutes" type="u">
+      <default>30</default>
+      <range min="1" max="1440"/>
+      <summary>Playlist interval</summary>
+      <description>Minutes before a display with several videos changes to the next one.</description>
+    </key>
+
+    <key name="playlist-order" enum="org.gnome.shell.extensions.gink-video-wallpaper.PlaylistOrder">
+      <default>'sequential'</default>
+      <summary>Playlist order</summary>
+      <description>Play videos in list order or pick a random one.</description>
+    </key>
+
+    <key name="playlist-state" type="s">
+      <default>'{}'</default>
+      <summary>Playlist positions</summary>
+      <description>Internal: the current video of each display's playlist, as JSON.</description>
     </key>
 
     <key name="paused" type="b">

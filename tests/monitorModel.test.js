@@ -7,7 +7,7 @@ import {FitMode} from '../lib/geometry.js';
 import {probe} from '../lib/mediaProbe.js';
 import {parseDisplayConfigState} from '../lib/monitorIdentity.js';
 import {LatestJobs} from '../prefs/latestJobs.js';
-import {applySelection, buildMonitorModel, describeMonitorId, loadPreview, modelLayout} from '../prefs/monitorModel.js';
+import {applySelection, buildMonitorModel, describeMonitorId, editPlaylist, loadPreview, modelLayout} from '../prefs/monitorModel.js';
 import {assertDeepEqual, assertEqual, run, test} from './harness.js';
 
 const root = GLib.dir_make_tmp('gink-vw-prefs-XXXXXX');
@@ -71,7 +71,7 @@ function selection(overrides = {}) {
         writes,
         stored,
         options: {
-            file: '/new.mp4', logical: LOGICAL, defaultFitMode: () => 'fill',
+            files: ['/new.mp4'], logical: LOGICAL, defaultFitMode: () => 'fill',
             probe: async path => ({path, width: 10, height: 10}),
             readConfig: () => stored.current,
             writeConfig: value => writes.push(value),
@@ -84,12 +84,39 @@ function selection(overrides = {}) {
 test('selection writes the file and keeps the stored fit mode and optimize flag', async () => {
     const {writes, options} = selection();
     const {geometry} = await applySelection(options);
-    assertDeepEqual(writes, [{file: '/new.mp4', fitMode: 'fit', optimize: true}]);
+    assertDeepEqual(writes, [{files: ['/new.mp4'], fitMode: 'fit', optimize: true}]);
     assertDeepEqual(geometry, {width: 2561, height: 1440, scale: 1.5, fitMode: 'fit', transformVersion: 1});
     const fresh = selection();
     fresh.stored.current = null;
     await applySelection(fresh.options);
-    assertDeepEqual(fresh.writes, [{file: '/new.mp4', fitMode: null, optimize: null}], 'new config uses default');
+    assertDeepEqual(fresh.writes, [{files: ['/new.mp4'], fitMode: null, optimize: null}], 'new config uses default');
+});
+
+test('adding to a playlist probes and prepares only the added files', async () => {
+    const probed = [];
+    const prepared = [];
+    const {writes, options} = selection({
+        files: ['/old.mp4', '/b.mp4', '/c.gif'], added: ['/b.mp4', '/c.gif'],
+        probe: async path => {
+            probed.push(path);
+            return {path};
+        },
+        prepare: async (media, _geometry, config) => prepared.push([media.path, config.file]),
+    });
+    const {media} = await applySelection(options);
+    assertDeepEqual(probed, ['/b.mp4', '/c.gif']);
+    assertDeepEqual(prepared, [['/b.mp4', '/b.mp4'], ['/c.gif', '/c.gif']]);
+    assertEqual(media.length, 2);
+    assertDeepEqual(writes, [{files: ['/old.mp4', '/b.mp4', '/c.gif'], fitMode: 'fit', optimize: true}]);
+});
+
+test('playlist edits add without duplicates, remove and move up', () => {
+    const files = ['/a', '/b', '/c'];
+    assertDeepEqual(editPlaylist(files, {add: ['/b', '/d']}), ['/a', '/b', '/c', '/d']);
+    assertDeepEqual(editPlaylist(files, {remove: '/b'}), ['/a', '/c']);
+    assertDeepEqual(editPlaylist(files, {raise: '/c'}), ['/a', '/c', '/b']);
+    assertDeepEqual(editPlaylist(files, {raise: '/a'}), files, 'first stays first');
+    assertDeepEqual(files, ['/a', '/b', '/c'], 'input untouched');
 });
 
 test('probe failure, bad geometry or cancellation never writes', async () => {
@@ -173,16 +200,16 @@ if (findProgram('ffmpeg') && findProgram('ffprobe')) {
         const files = [[encode('sar.mp4', ['-vf', 'setsar=4/3']), '128x48'],
             [ffmpeg('rot.mp4', ['-display_rotation', '90', '-i', encode('base.mp4', []), '-c', 'copy']), '48x96']];
         for (const [file, size] of files) {
-            const {writes, options} = selection({file, logical, probe});
-            const {media, geometry} = await applySelection(options);
+            const {writes, options} = selection({files: [file], logical, probe});
+            const {media: [media], geometry} = await applySelection(options);
             assertEqual(`${media.width}x${media.height}`, size, `${file} display size`);
-            assertEqual(writes[0].file, file, `${file} saved`);
+            assertDeepEqual(writes[0].files, [file], `${file} saved`);
             const still = await loadPreview({file, geometry, ...previewDeps, cancellable: new Gio.Cancellable()});
             assertEqual(pngSize(still), '64x48', `${file} preview size`);
         }
         const hdr = encode('hdr.mp4', ['-vf',
             'setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc']);
-        const {writes, options} = selection({file: hdr, logical, probe});
+        const {writes, options} = selection({files: [hdr], logical, probe});
         const error = await applySelection(options).catch(caught => caught);
         assertEqual(error.code, 'UNSUPPORTED_HDR', 'HDR rejected');
         assertEqual(/SDR/.test(error.message), true, 'actionable message');

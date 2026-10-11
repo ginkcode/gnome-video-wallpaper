@@ -11,6 +11,7 @@ import {MonitorWatcher} from './lib/monitorTopology.js';
 import {PanelIndicator} from './lib/panelIndicator.js';
 import {PauseController} from './lib/pauseController.js';
 import {PlayerManager} from './lib/playerManager.js';
+import {Playlist} from './lib/playlist.js';
 import {isLockedSession, watchSleep} from './lib/sessionLifecycle.js';
 import {optimizedDir} from './lib/transcoder.js';
 import {UserPauseController} from './lib/userPauseController.js';
@@ -23,8 +24,10 @@ export default class GinkVideoWallpaper extends Extension {
         const log = createLogger('extension');
         this._hanabi = new HanabiWatcher({extensionManager: Main.extensionManager});
         this._hanabi.enable();
+        this._playlist = new Playlist({settings: this._settings, onChange: () => reconcile()});
         this._manager = new PlayerManager({settings: this._settings,
-            openPreferences: () => this.openPreferences()});
+            openPreferences: () => this.openPreferences(),
+            fileFor: (id, files) => this._playlist.fileFor(id, files)});
         const start = () => this._manager.start().catch(error => log.error(`start failed: ${error.message}`));
         this._unwatchSleep = watchSleep(getLoginManager(), {
             onSleep: () => {
@@ -41,7 +44,7 @@ export default class GinkVideoWallpaper extends Extension {
         this._userPause = new UserPauseController({playerManager: this._manager, settings: this._settings});
         this._userPause.enable();
         this._indicator = new PanelIndicator({uuid: this.uuid, settings: this._settings,
-            openPreferences: () => this.openPreferences()});
+            openPreferences: () => this.openPreferences(), next: () => this._playlist?.advance()});
         this._indicator.enable();
         const reconcile = () => {
             if (this._manager?.started)
@@ -54,12 +57,15 @@ export default class GinkVideoWallpaper extends Extension {
             onChange: reconcile,
         });
         this._monitors.enable();
+        this._playlist.enable();
         start();
         const end = GLib.get_monotonic_time();
         log.debug(`enable at ${Math.round(begin / 1000)} ms took ${((end - begin) / 1000).toFixed(2)} ms`);
     }
 
     disable() {
+        this._playlist?.disable();
+        this._playlist = null;
         this._monitors?.disable();
         this._monitors = null;
         this._unwatchSleep?.();

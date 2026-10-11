@@ -34,7 +34,7 @@ assertEqual(readMonitorConfigs(s), {}, 'empty reads as {}');
 
 writeMonitorConfig(s, 'eDP-1', makeConfig({fitMode: 'fill'}));
 assertEqual(readMonitorConfigs(s), {
-    'eDP-1': {file: '/tmp/a.mp4', fitMode: 'fill', optimize: null},
+    'eDP-1': {file: '/tmp/a.mp4', files: ['/tmp/a.mp4'], fitMode: 'fill', optimize: null},
 }, 'write/read round-trip');
 
 writeMonitorConfig(s, 'eDP-1', makeConfig({optimize: true}));
@@ -54,8 +54,18 @@ assertEqual(readMonitorConfigs(s), {}, 'array treated as {}');
 
 s = new FakeSettings('{"bad":{"file":"rel/path"},"ok":{"file":"/abs.mp4","fitMode":null,"optimize":null}}');
 assertEqual(readMonitorConfigs(s), {
-    ok: {file: '/abs.mp4', fitMode: null, optimize: null},
+    ok: {file: '/abs.mp4', files: ['/abs.mp4'], fitMode: null, optimize: null},
 }, 'invalid entries dropped');
+
+s = new FakeSettings();
+writeMonitorConfig(s, 'eDP-1', {files: ['/b.mp4', '/a.gif', '/b.mp4'], fitMode: null, optimize: null});
+assertEqual(readMonitorConfigs(s)['eDP-1'], {file: '/b.mp4', files: ['/b.mp4', '/a.gif'], fitMode: null,
+    optimize: null}, 'playlist deduplicated; file is the first entry');
+writeMonitorConfig(s, 'eDP-1', {...readMonitorConfigs(s)['eDP-1'], fitMode: 'fit'});
+assertEqual(readMonitorConfigs(s)['eDP-1'].files, ['/b.mp4', '/a.gif'], 'merge preserves the playlist');
+s = new FakeSettings('{"a":{"files":[],"fitMode":null,"optimize":null},"b":{"files":["/x","y"],' +
+    '"fitMode":null,"optimize":null}}');
+assertEqual(readMonitorConfigs(s), {}, 'empty or relative playlists dropped');
 
 const mirrored = [{connector: 'HDMI-1', id: 'HDMI-1:x:y:1'}, {connector: 'DP-1', id: 'DP-1:x:y:2'}];
 assertEqual(selectConfigured(['HDMI-1', 'DP-1'], mirrored, {'HDMI-1:x:y:1': makeConfig()})?.physical.connector,

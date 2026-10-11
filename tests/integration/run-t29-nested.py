@@ -91,7 +91,7 @@ def main():
         events, messages, monitor, survivors = session(base, asset)
         steps = events.get('steps', {})
         checks = {
-            'indicatorShown': steps.get('shown') is True and steps.get('labels') == ['Pause', 'Preferences'],
+            'indicatorShown': steps.get('shown') is True and steps.get('labels') == ['Pause', 'Next Video', 'Preferences'],
             'toggleControlsPlayback': steps.get('toggle') == [
                 {'label': 'Play', 'paused': True, 'state': 'paused', 'pause': True},
                 {'label': 'Pause', 'paused': False, 'state': 'playing', 'pause': False}],

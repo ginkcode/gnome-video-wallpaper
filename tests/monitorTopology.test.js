@@ -53,6 +53,18 @@ test('unconfigured or unindexed logical monitors get no target', () => {
     assertDeepEqual(planTargets(topology, {}, options()), []);
 });
 
+test('the playlist chooses each target file by physical monitor id', () => {
+    const configs = {[EDP]: config('/a.mp4', {files: ['/a.mp4', '/b.mp4']}), [HDMI]: config('/c.mp4')};
+    const calls = [];
+    const plans = planTargets(loadFixture('display-state-mixed.json'), configs, {...options(),
+        fileFor: (id, chosen) => {
+            calls.push(id);
+            return chosen.files?.at(-1) ?? chosen.file;
+        }});
+    assertDeepEqual(plans.map(plan => plan.file), ['/c.mp4', '/b.mp4']);
+    assertDeepEqual(calls, [HDMI, EDP]);
+});
+
 test('mirrored connectors share one target from the first configured sorted connector', () => {
     const topology = loadFixture('display-state-mirrored.json');
     const a = 'HDMI-1:DEL:Same:A';

@@ -46,22 +46,37 @@ function validRaster({width, height}) {
     return Number.isInteger(width) && Number.isInteger(height) && width > 0 && height > 0;
 }
 
-export async function applySelection({file, logical, defaultFitMode, probe, readConfig, writeConfig, prepare = null,
-    cancellable}) {
-    const media = await probe(file, cancellable);
-    cancellable.set_error_if_cancelled();
+export async function applySelection({files, added = files, logical, defaultFitMode, probe, readConfig, writeConfig,
+    prepare = null, cancellable}) {
     const current = readConfig();
     const fitMode = current?.fitMode ?? null;
     const geometry = targetGeometry(logical, fitMode ?? defaultFitMode());
     if (!validRaster(geometry))
         throw new Error('This display reports an invalid size. Reconnect it and try again.');
-    if (prepare) {
-        await prepare(media, geometry, {file, fitMode, optimize: current?.optimize ?? null}, cancellable);
+    const media = [];
+    for (const file of added) {
+        media.push(await probe(file, cancellable));
         cancellable.set_error_if_cancelled();
     }
+    if (prepare) {
+        for (const [index, file] of added.entries()) {
+            await prepare(media[index], geometry, {file, fitMode, optimize: current?.optimize ?? null}, cancellable);
+            cancellable.set_error_if_cancelled();
+        }
+    }
     const latest = readConfig();
-    writeConfig({file, fitMode: latest?.fitMode ?? null, optimize: latest?.optimize ?? null});
+    writeConfig({files, fitMode: latest?.fitMode ?? null, optimize: latest?.optimize ?? null});
     return {media, geometry};
+}
+
+export function editPlaylist(files, {add = [], remove = null, raise = null} = {}) {
+    let result = [...files, ...add.filter(file => !files.includes(file))];
+    if (remove !== null)
+        result = result.filter(file => file !== remove);
+    const index = raise === null ? -1 : result.indexOf(raise);
+    if (index > 0)
+        result.splice(index - 1, 2, result[index], result[index - 1]);
+    return [...new Set(result)];
 }
 
 export async function loadPreview({file, geometry, probe, acquire, ensureStill, release, optimizedPathFor = () => null,

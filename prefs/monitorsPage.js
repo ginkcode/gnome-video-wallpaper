@@ -11,9 +11,9 @@ import {getMonitors} from '../lib/monitorIdentity.js';
 import {acquirePlaybackAsset, ensureStill, releasePlaybackAsset} from '../lib/stillCache.js';
 import {canOptimize, ensureOptimized, optimizedPath, shouldOptimize} from '../lib/transcoder.js';
 import {LatestJobs} from './latestJobs.js';
-import {applySelection, buildMonitorModel, loadPreview, modelLayout} from './monitorModel.js';
+import {applySelection, buildMonitorModel, editPlaylist, loadPreview, modelLayout} from './monitorModel.js';
 
-Gio._promisify(Gtk.FileDialog.prototype, 'open', 'open_finish');
+Gio._promisify(Gtk.FileDialog.prototype, 'open_multiple', 'open_multiple_finish');
 
 const FIT_MODES = [null, 'fill', 'fit', 'stretch'];
 const FIT_LABELS = {fill: 'Fill', fit: 'Fit', stretch: 'Stretch'};
@@ -33,6 +33,10 @@ function fileFilters() {
     filters.append(media);
     filters.append(all);
     return {filters, media};
+}
+
+function basename(file) {
+    return GLib.markup_escape_text(GLib.path_get_basename(file), -1);
 }
 
 function iconButton(iconName, tooltip, onClicked) {
@@ -63,14 +67,15 @@ class MonitorSection {
         if (group.mirrored)
             this.widget.set_header_suffix(this._status);
 
-        this._fileRow = new Adw.ActionRow({title: 'Video', subtitle_lines: 1, title_lines: 1});
+        this._fileRow = new Adw.ExpanderRow({title: 'Videos', subtitle_lines: 1, title_lines: 1});
+        this._fileRows = [];
+        this._filesKey = null;
         this._spinner = new Adw.Spinner({visible: false, valign: Gtk.Align.CENTER});
-        this._remove = iconButton('user-trash-symbolic', 'Remove wallpaper', () => page.removeConfig(this._id));
-        const choose = iconButton('document-open-symbolic', 'Choose video', () => page.choose(this._id, this._logical));
+        this._remove = iconButton('user-trash-symbolic', 'Remove all videos', () => page.removeConfig(this._id));
+        const choose = iconButton('list-add-symbolic', 'Add videos', () => page.choose(this._id, this._logical));
         this._fileRow.add_suffix(this._spinner);
         this._fileRow.add_suffix(choose);
         this._fileRow.add_suffix(this._remove);
-        this._fileRow.set_activatable_widget(choose);
         this.widget.add(this._fileRow);
 
         this._progress = new Gtk.ProgressBar({show_text: true, valign: Gtk.Align.CENTER, hexpand: true});
@@ -121,14 +126,39 @@ class MonitorSection {
         this._fitRow.sensitive = Boolean(config);
         this._optimizeRow.sensitive = Boolean(config);
         this._remove.sensitive = Boolean(config);
-        this._fileRow.subtitle = config ? GLib.markup_escape_text(GLib.path_get_basename(config.file), -1) : 'None';
-        this._fileRow.tooltip_text = config?.file ?? '';
+        const files = config?.files ?? [];
+        const current = this._page.currentFile(this._id, files);
+        this._fileRow.subtitle = files.length > 1 ? `${files.length} videos · now ${basename(current)}`
+            : files.length ? basename(current) : 'None';
+        this._fileRow.enable_expansion = files.length > 0;
+        this._updateFileRows(files, current);
         this._status.label = member.effective ? 'In use' : config ? 'Not used' : '';
-        const request = config ? {file: config.file, optimize: this._page.optimizeEnabled(config),
-            geometry: targetGeometry(this._logical, config.fitMode ?? defaultFit)} : null;
-        if (request)
-            this._page.refreshOptimized(this._id, request);
-        this._showPreview(request);
+        const geometry = config ? targetGeometry(this._logical, config.fitMode ?? defaultFit) : null;
+        if (config)
+            this._page.refreshOptimized(this._id, {files, geometry, optimize: this._page.optimizeEnabled(config)});
+        this._showPreview(config ? {file: current, geometry, optimize: this._page.optimizeEnabled(config)} : null);
+    }
+
+    _updateFileRows(files, current) {
+        const key = JSON.stringify([files, current]);
+        if (key === this._filesKey)
+            return;
+        this._filesKey = key;
+        for (const row of this._fileRows)
+            this._fileRow.remove(row);
+        this._fileRows = files.map((file, index) => {
+            const row = new Adw.ActionRow({title: basename(file), tooltip_text: file, title_lines: 1});
+            const playing = new Gtk.Image({icon_name: 'media-playback-start-symbolic',
+                tooltip_text: 'Current video', opacity: file === current && files.length > 1 ? 1 : 0});
+            row.add_prefix(playing);
+            const raise = iconButton('go-up-symbolic', 'Play earlier', () => this._page.raiseFile(this._id, file));
+            raise.sensitive = index > 0;
+            row.add_suffix(raise);
+            row.add_suffix(iconButton('list-remove-symbolic', 'Remove from list',
+                () => this._page.removeFile(this._id, file)));
+            this._fileRow.add_row(row);
+            return row;
+        });
     }
 
     setBusy(busy) {
@@ -191,7 +221,8 @@ class MonitorsPage extends Adw.PreferencesPage {
         this._layout = null;
         this._idle = 0;
         this._cancellable = new Gio.Cancellable();
-        this._settingsIds = ['changed::monitor-configs', 'changed::default-fit-mode', 'changed::optimize-videos'].map(signal =>
+        this._settingsIds = ['changed::monitor-configs', 'changed::default-fit-mode', 'changed::optimize-videos',
+            'changed::playlist-state'].map(signal =>
             settings.connect(signal, () => this._queueRender()));
         this._monitorsSignal = Gio.DBus.session.signal_subscribe('org.gnome.Mutter.DisplayConfig',
             'org.gnome.Mutter.DisplayConfig', 'MonitorsChanged', '/org/gnome/Mutter/DisplayConfig', null,
@@ -225,6 +256,16 @@ class MonitorsPage extends Adw.PreferencesPage {
         return config.optimize ?? this.optimizeVideos();
     }
 
+    currentFile(id, files) {
+        let current;
+        try {
+            current = JSON.parse(this._settings.get_string('playlist-state'))?.[id];
+        } catch {
+            current = null;
+        }
+        return files.includes(current) ? current : files[0] ?? null;
+    }
+
     optimizedGeneration(id) {
         return this._generations.get(id) ?? 0;
     }
@@ -250,23 +291,38 @@ class MonitorsPage extends Adw.PreferencesPage {
         return produced;
     }
 
-    refreshOptimized(id, {file, geometry, optimize}) {
-        const key = JSON.stringify([file, geometry, optimize]);
+    refreshOptimized(id, {files, geometry, optimize}) {
+        const key = JSON.stringify([files, geometry, optimize]);
         if (this._optimizeKeys.get(id) === key)
             return;
         this._optimizeKeys.set(id, key);
-        this._runOptimize(id, file, geometry, optimize);
+        this._runOptimize(id, files, geometry, optimize);
     }
 
-    async _runOptimize(id, file, geometry, optimize) {
-        const result = await this._jobs.run(`optimize:${id}`, async cancellable =>
-            this._optimize(id, await probe(file, cancellable), geometry, optimize, cancellable));
+    async _runOptimize(id, files, geometry, optimize) {
+        let failed = null;
+        const result = await this._jobs.run(`optimize:${id}`, async cancellable => {
+            let produced = false;
+            for (const file of files) {
+                try {
+                    produced = await this._optimize(id, await probe(file, cancellable), geometry, optimize,
+                        cancellable) || produced;
+                } catch (error) {
+                    if (cancellable.is_cancelled())
+                        throw error;
+                    if (!(error instanceof ProbeError))
+                        failed ??= {file, error};
+                }
+            }
+            return produced;
+        });
         if (result.cancelled)
             return;
-        if (result.error && !(result.error instanceof ProbeError)) {
-            this._toast(`Could not optimize ${GLib.path_get_basename(file)}: ${result.error.message} ` +
+        if (failed) {
+            this._toast(`Could not optimize ${GLib.path_get_basename(failed.file)}: ${failed.error.message} ` +
                 'The original video is played instead.');
-        } else if (result.value) {
+        }
+        if (result.value) {
             this._generations.set(id, this.optimizedGeneration(id) + 1);
             this._sections.get(id)?.refreshPreview();
         }
@@ -274,31 +330,38 @@ class MonitorsPage extends Adw.PreferencesPage {
 
     async choose(id, logical) {
         const {filters, media} = fileFilters();
-        const dialog = new Gtk.FileDialog({title: 'Choose a video or GIF', modal: true, filters,
+        const dialog = new Gtk.FileDialog({title: 'Add videos or GIFs', modal: true, filters,
             default_filter: media});
         const current = readMonitorConfigs(this._settings)[id];
         if (current)
-            dialog.initial_file = Gio.File.new_for_path(current.file);
-        let file;
+            dialog.initial_folder = Gio.File.new_for_path(current.files.at(-1)).get_parent();
+        let list;
         try {
-            file = await dialog.open(this.get_root(), this._cancellable);
+            list = await dialog.open_multiple(this.get_root(), this._cancellable);
         } catch (error) {
             if (!error.matches?.(Gtk.DialogError, Gtk.DialogError.DISMISSED) &&
                 !error.matches?.(Gtk.DialogError, Gtk.DialogError.CANCELLED))
                 this._toast(error.message);
             return;
         }
-        const path = file?.get_path();
-        if (path)
-            await this.select(id, logical, path);
-        else
-            this._toast('Choose a local file.');
+        const files = [];
+        for (let index = 0; index < (list?.get_n_items() ?? 0); index++)
+            files.push(list.get_item(index));
+        const paths = files.map(file => file.get_path()).filter(Boolean);
+        if (paths.length < files.length)
+            this._toast('Choose local files.');
+        if (paths.length)
+            await this.select(id, logical, paths);
     }
 
-    async select(id, logical, path) {
+    async select(id, logical, paths) {
+        const existing = readMonitorConfigs(this._settings)[id]?.files ?? [];
+        const added = paths.filter(path => !existing.includes(path));
+        if (!added.length)
+            return;
         this._sections.get(id)?.setBusy(true);
         const result = await this._jobs.run(`select:${id}`, cancellable => applySelection({
-            file: path, logical, cancellable, probe,
+            files: editPlaylist(existing, {add: added}), added, logical, cancellable, probe,
             defaultFitMode: () => this.defaultFitMode(),
             readConfig: () => readMonitorConfigs(this._settings)[id] ?? null,
             writeConfig: config => writeMonitorConfig(this._settings, id, config),
@@ -322,6 +385,23 @@ class MonitorsPage extends Adw.PreferencesPage {
         const current = readMonitorConfigs(this._settings)[id];
         if (current && current.optimize !== optimize)
             writeMonitorConfig(this._settings, id, {...current, optimize});
+    }
+
+    removeFile(id, file) {
+        const current = readMonitorConfigs(this._settings)[id];
+        if (!current)
+            return;
+        const files = editPlaylist(current.files, {remove: file});
+        if (files.length)
+            writeMonitorConfig(this._settings, id, {...current, files});
+        else
+            this.removeConfig(id);
+    }
+
+    raiseFile(id, file) {
+        const current = readMonitorConfigs(this._settings)[id];
+        if (current)
+            writeMonitorConfig(this._settings, id, {...current, files: editPlaylist(current.files, {raise: file})});
     }
 
     removeConfig(id) {
@@ -424,8 +504,8 @@ class MonitorsPage extends Adw.PreferencesPage {
         const expander = new Adw.ExpanderRow({title: `Disconnected displays (${others.length})`, expanded: false});
         for (const other of others) {
             const row = new Adw.ActionRow({title: GLib.markup_escape_text(other.title, -1),
-                subtitle: GLib.markup_escape_text(`${other.connector} · ${GLib.path_get_basename(other.config.file)}`,
-                    -1)});
+                subtitle: GLib.markup_escape_text(`${other.connector} · ${GLib.path_get_basename(other.config.file)}` +
+                    (other.config.files.length > 1 ? ` and ${other.config.files.length - 1} more` : ''), -1)});
             row.add_suffix(iconButton('user-trash-symbolic', 'Remove wallpaper', () => this.removeConfig(other.id)));
             expander.add_row(row);
         }
