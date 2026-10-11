@@ -29,6 +29,7 @@ class Fixture {
         this.keys = [KEY];
         this.staggerMs = 0;
         this.notifications = [];
+        this.stops = [];
     }
 
     gate(name, cancellable, value) {
@@ -60,6 +61,7 @@ class Fixture {
             staggerMs: () => this.staggerMs,
             maxRetries: () => 3,
             notify: (key, message) => this.notifications.push(`${key}: ${message}`),
+            onStop: ({restore}) => this.stops.push(restore),
             resolveTargets: ({cancellable}) => this.gate('resolve', cancellable, this.keys.map(key => ({
                 logicalMonitorKey: key, selectedPhysicalMonitorId: `${key}:a:b:`, monitorIndex: 0,
                 selectionKey: this.selection, file: `/${this.selection}.mp4`, optimizedPath: null,
@@ -562,6 +564,26 @@ test('start twice without stop is rejected; setPaused validates arguments', asyn
     assertEqual(rejected, true);
     assertThrows(() => manager.setPaused('', 'battery', true));
     manager.stop();
+    await drainReaps(fixture);
+});
+
+test('stop forwards the restore choice; repeated sleep/resume keeps one live player', async () => {
+    const fixture = new Fixture();
+    const manager = fixture.manager();
+    await manager.start();
+    for (let i = 0; i < 5; i++) {
+        manager.stop();
+        const resumed = manager.start();
+        await sleep(5);
+        assertEqual(fixture.processes.filter(process => process.started).length, i + 1,
+            'no spawn before the previous reap');
+        fixture.processes[i].reap();
+        await resumed;
+        assertEqual(fixture.processes.filter(process => !process.terminated).length, 1, 'one live player');
+        assertEqual(manager.getState(KEY), PlayerState.PLAYING);
+    }
+    manager.stop({restore: true});
+    assertDeepEqual(fixture.stops, [false, false, false, false, false, true]);
     await drainReaps(fixture);
 });
 

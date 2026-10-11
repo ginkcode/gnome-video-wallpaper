@@ -1,9 +1,12 @@
 import GLib from 'gi://GLib';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import {getLoginManager} from 'resource:///org/gnome/shell/misc/loginManager.js';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {createLogger, setDebugEnabled} from './lib/log.js';
 import {PlayerManager} from './lib/playerManager.js';
+import {isLockedSession, watchSleep} from './lib/sessionLifecycle.js';
 
 export default class GinkVideoWallpaper extends Extension {
     enable() {
@@ -13,13 +16,26 @@ export default class GinkVideoWallpaper extends Extension {
         const log = createLogger('extension');
         this._manager = new PlayerManager({settings: this._settings,
             openPreferences: () => this.openPreferences()});
-        this._manager.start().catch(error => log.error(`start failed: ${error.message}`));
+        const start = () => this._manager.start().catch(error => log.error(`start failed: ${error.message}`));
+        this._unwatchSleep = watchSleep(getLoginManager(), {
+            onSleep: () => {
+                log.debug('preparing for sleep; stopping players');
+                this._manager.stop();
+            },
+            onResume: () => {
+                log.debug('resumed; restarting players');
+                start();
+            },
+        });
+        start();
         const end = GLib.get_monotonic_time();
         log.debug(`enable at ${Math.round(begin / 1000)} ms took ${((end - begin) / 1000).toFixed(2)} ms`);
     }
 
     disable() {
-        this._manager?.stop();
+        this._unwatchSleep?.();
+        this._unwatchSleep = null;
+        this._manager?.stop({restore: !isLockedSession(Main.sessionMode)});
         this._manager = null;
         this._settings = null;
     }

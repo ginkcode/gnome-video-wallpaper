@@ -175,6 +175,8 @@ export default class T09Probe extends Extension {
         Main.extensionManager.disableExtension(TARGET);
         report('disabled', {children: group.get_n_children()});
         const reaped = await waitFor(() => lifecycle.outstandingReapCount() === 0, 5000);
+        // Restoring the wallpaper makes the Shell cross-fade its own background actor for about 1 s.
+        await waitFor(() => group.get_n_children() === baseline, 3000);
         await delay(300);
         report('audit', {reaped: Boolean(reaped), children: group.get_n_children(), baseline,
             sockets: await listSockets()});

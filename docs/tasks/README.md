@@ -31,7 +31,7 @@ Read first:
 | [T14](T14-flicker-free-handoff.md) | Flicker-free still → video handoff | M2 | T09, T12, T13 | review | Claude Code |
 | [T15](T15-startup-gate.md) | Startup gating and staggered start | M3 | T09 | review | Claude Code |
 | [T16](T16-player-supervisor.md) | Bounded retries and failure notification | M3 | T09, T14 | review | Claude Code |
-| [T17](T17-lock-and-disable.md) | Lock/unlock and disable semantics | M3 | T13, T14, T15 | todo | |
+| [T17](T17-lock-and-disable.md) | Lock/unlock and disable semantics | M3 | T13, T14, T15 | review | Claude Code |
 | [T18](T18-login-performance.md) | Login performance measurement | M3 | T14, T15, T16, T17 | todo | |
 | [T19](T19-pause-coverage.md) | Pause on maximized/fullscreen coverage | M4 | T05, T09 | todo | |
 | [T20](T20-pause-overview-battery.md) | Pause on Overview and battery | M4 | T19 | todo | |

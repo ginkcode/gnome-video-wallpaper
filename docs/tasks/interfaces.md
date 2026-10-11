@@ -221,7 +221,7 @@ Save originals once and set both light/dark URIs. Applying does not prove backgr
 export class PlayerManager {
     constructor({settings, logger})
     async start()
-    stop()                                  // synchronous invalidate/cleanup/terminateNow; no awaited shell work
+    stop({restore = false} = {})            // synchronous invalidate/cleanup/terminateNow; no awaited shell work
     async reconcile()
     setPaused(logicalMonitorKey, reason, paused) // reasons combine with OR
 }
@@ -233,6 +233,15 @@ Replacement: prepare and display replacement still over old video → remove old
 T14: starts and reconciles are serialized, and a reconcile with an unchanged selection is a no-op. A failed or timed-out start terminates the player but keeps the layer showing the still; T16 supervises retries. The system wallpaper is applied only with one logical monitor until T26. Disable does not restore the wallpaper until T17.
 
 T16 supervision: a crash or transient failure triggers a retry after `2s, 8s, 30s`. Failures within 10 minutes count toward `max-retries`; reaching it blocks the monitor. Errors classified as permanent (`ProbeError`, or `CacheError` other than `SOURCE_CHANGED`/`STILL_MISSING`) block at once. A blocked monitor keeps its still and gets one notification, and stays blocked until its selection changes or the extension is re-enabled. 60 s of healthy playback clears the failure count. Optional constructor overrides: `backoffMs`, `failureWindowMs`, `healthyMs`. Optional env hooks: `classify(error)`, `maxRetries()`, `notify(key, message)`. `PlayerManager` accepts `openPreferences` for the notification action.
+
+T17: `stop({restore: true})` also restores the saved system wallpaper; `disable()` passes it unless the session is locked. The env hook `onStop({restore})` performs it.
+
+## `lib/sessionLifecycle.js` (T17) [pure]
+
+```js
+export function isLockedSession(sessionMode)      // isLocked || currentMode === 'unlock-dialog'
+export function watchSleep(loginManager, {onSleep, onResume}) // 'prepare-for-sleep' pairs; -> unwatch()
+```
 
 ## `lib/pauseController.js` (T19, T20) [shell]
 
