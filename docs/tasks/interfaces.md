@@ -232,6 +232,8 @@ Replacement: prepare and display replacement still over old video → remove old
 
 T14: starts and reconciles are serialized, and a reconcile with an unchanged selection is a no-op. A failed or timed-out start terminates the player but keeps the layer showing the still; T16 supervises retries. The system wallpaper is applied only with one logical monitor until T26. Disable does not restore the wallpaper until T17.
 
+T16 supervision: a crash or transient failure triggers a retry after `2s, 8s, 30s`. Failures within 10 minutes count toward `max-retries`; reaching it blocks the monitor. Errors classified as permanent (`ProbeError`, or `CacheError` other than `SOURCE_CHANGED`/`STILL_MISSING`) block at once. A blocked monitor keeps its still and gets one notification, and stays blocked until its selection changes or the extension is re-enabled. 60 s of healthy playback clears the failure count. Optional constructor overrides: `backoffMs`, `failureWindowMs`, `healthyMs`. Optional env hooks: `classify(error)`, `maxRetries()`, `notify(key, message)`. `PlayerManager` accepts `openPreferences` for the notification action.
+
 ## `lib/pauseController.js` (T19, T20) [shell]
 
 ```js

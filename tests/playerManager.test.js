@@ -28,6 +28,7 @@ class Fixture {
         this.selection = 'video';
         this.keys = [KEY];
         this.staggerMs = 0;
+        this.notifications = [];
     }
 
     gate(name, cancellable, value) {
@@ -57,6 +58,8 @@ class Fixture {
         return {
             waitForStartup: ({cancellable}) => this.gate('gate', cancellable),
             staggerMs: () => this.staggerMs,
+            maxRetries: () => 3,
+            notify: (key, message) => this.notifications.push(`${key}: ${message}`),
             resolveTargets: ({cancellable}) => this.gate('resolve', cancellable, this.keys.map(key => ({
                 logicalMonitorKey: key, selectedPhysicalMonitorId: `${key}:a:b:`, monitorIndex: 0,
                 selectionKey: this.selection, file: `/${this.selection}.mp4`, optimizedPath: null,
@@ -451,6 +454,101 @@ test('stale gate completion cannot spawn after re-enable', async () => {
     assertEqual(fresh.processes.length, 1, 'only the new lifecycle spawns');
     second.stop();
     await drainReaps(fresh);
+});
+
+function supervised(fixture, env = fixture.env()) {
+    return new PlayerManagerLifecycle({env, logger: quiet, fadeMs: 0, backoffMs: [10, 30, 60],
+        healthyMs: 40});
+}
+
+async function until(predicate, ms = 500) {
+    for (let i = 0; i < ms && !predicate(); i++)
+        await sleep(1);
+    if (!predicate())
+        throw new Error('condition not reached');
+}
+
+async function crash(fixture, index) {
+    const process = fixture.processes[index];
+    process.exit({status: 137, signaled: true});
+    process.reap();
+    await sleep(1);
+}
+
+test('crashes retry with backoff, then stop on the still with one notification', async () => {
+    const fixture = new Fixture();
+    const manager = supervised(fixture);
+    await manager.start();
+    const spawned = [GLib.get_monotonic_time()];
+    for (const index of [0, 1]) {
+        await crash(fixture, index);
+        assertEqual(manager.getState(KEY), PlayerState.FAILED, `failed after crash ${index}`);
+        await until(() => manager.getState(KEY) === PlayerState.PLAYING);
+        spawned.push(GLib.get_monotonic_time());
+    }
+    assertEqual((spawned[1] - spawned[0]) / 1000 >= 10, true, 'first backoff');
+    assertEqual((spawned[2] - spawned[1]) / 1000 >= 30, true, 'second backoff');
+    await crash(fixture, 2);
+    await sleep(120);
+    assertEqual(fixture.processes.length, 3, 'no fourth spawn');
+    assertEqual(fixture.notifications.length, 1, 'one notification');
+    assertEqual(manager.getState(KEY), PlayerState.FAILED);
+    assertEqual(fixture.layers.at(-1).destroyed, false, 'still kept');
+    assertEqual(fixture.layers.slice(0, -1).every(layer => layer.destroyed), true, 'one layer per monitor');
+    await manager.reconcile();
+    assertEqual(fixture.processes.length, 3, 'blocked until the selection changes');
+    fixture.selection = 'other';
+    await manager.reconcile();
+    assertEqual(fixture.processes.length, 4, 'settings change unblocks');
+    manager.stop();
+    await drainReaps(fixture);
+});
+
+test('missing or unreadable media fails without retries and notifies once', async () => {
+    const fixture = new Fixture();
+    const env = fixture.env();
+    env.probe = () => Promise.reject(new Error('Video file not found'));
+    env.classify = () => 'permanent';
+    const manager = supervised(fixture, env);
+    await manager.start();
+    await sleep(50);
+    assertDeepEqual(fixture.notifications, [`${KEY}: Video file not found`]);
+    assertEqual(fixture.log.filter(entry => entry === 'resolve').length, 1, 'no retry');
+    await manager.reconcile();
+    assertEqual(fixture.notifications.length, 1, 'no repeated notification');
+    manager.stop();
+});
+
+test('sixty seconds of healthy playback resets the failure count', async () => {
+    const fixture = new Fixture();
+    const manager = supervised(fixture);
+    await manager.start();
+    for (const index of [0, 1, 2]) {
+        await crash(fixture, index);
+        await until(() => manager.getState(KEY) === PlayerState.PLAYING);
+        await sleep(60);
+    }
+    assertEqual(fixture.processes.length, 4, 'kept retrying');
+    assertDeepEqual(fixture.notifications, []);
+    manager.stop();
+    await drainReaps(fixture);
+});
+
+test('disable during backoff or before the healthy reset leaves no stale retry or notification', async () => {
+    const fixture = new Fixture();
+    const manager = supervised(fixture);
+    await manager.start();
+    await crash(fixture, 0);
+    manager.stop();
+    await sleep(80);
+    assertEqual(fixture.processes.length, 1, 'no retry after disable');
+    const again = supervised(fixture);
+    await again.start();
+    again.stop();
+    await sleep(80);
+    assertEqual(fixture.processes.length, 2, 'no retry after healthy timer cancel');
+    assertDeepEqual(fixture.notifications, []);
+    await drainReaps(fixture);
 });
 
 test('start twice without stop is rejected; setPaused validates arguments', async () => {
