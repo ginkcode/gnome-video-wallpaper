@@ -15,6 +15,7 @@ import {Playlist} from './lib/playlist.js';
 import {isLockedSession, watchSleep} from './lib/sessionLifecycle.js';
 import {optimizedDir} from './lib/transcoder.js';
 import {UserPauseController} from './lib/userPauseController.js';
+import {WorkspaceAnimationFilter} from './lib/workspaceAnimationFilter.js';
 
 export default class GinkVideoWallpaper extends Extension {
     enable() {
@@ -28,6 +29,8 @@ export default class GinkVideoWallpaper extends Extension {
         this._manager = new PlayerManager({settings: this._settings,
             openPreferences: () => this.openPreferences(),
             fileFor: (id, files) => this._playlist.fileFor(id, files)});
+        this._animationFilter = new WorkspaceAnimationFilter({isOwn: window => this._manager?.ownsWindow(window)});
+        this._animationFilter.enable();
         const start = () => this._manager.start().catch(error => log.error(`start failed: ${error.message}`));
         this._unwatchSleep = watchSleep(getLoginManager(), {
             onSleep: () => {
@@ -80,6 +83,8 @@ export default class GinkVideoWallpaper extends Extension {
         this._pause = null;
         this._manager?.stop({restore: !isLockedSession(Main.sessionMode)});
         this._manager = null;
+        this._animationFilter?.disable();
+        this._animationFilter = null;
         this._hanabi?.disable();
         this._hanabi = null;
         this._settings = null;

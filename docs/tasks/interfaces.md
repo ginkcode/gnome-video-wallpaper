@@ -340,6 +340,14 @@ export class Playlist {
 
 `planTargets(topology, configs, {..., fileFor})` uses `fileFor(physicalMonitorId, config)` (default `config.file`). `PlayerManager({settings, openPreferences, fileFor})` passes `fileFor(id, config.files)`. The timer runs every `playlist-interval-minutes` and skips while `paused`. Prefs `applySelection({files, added = files, ...})` probes and prepares only `added`, then writes `files`. `editPlaylist(files, {add, remove, raise})` is pure.
 
+## `lib/workspaceAnimationFilter.js` (T31) [shell]
+
+```js
+export class WorkspaceAnimationFilter { constructor({isOwn}); enable(); disable() }
+```
+
+While enabled, `WorkspaceGroup.prototype._shouldShowWindow` (Shell's workspace switch animation) rejects windows for which `isOwn(window)` was ever true, so player windows are never cloned into a switch and cannot change eligibility mid-switch. `disable()` restores the original method. `BackgroundLayer` only returns focus to the previous window when it is on the active workspace; otherwise it unsets input focus.
+
 ## `lib/startupGate.js` (T15) [shell]
 
 ```js

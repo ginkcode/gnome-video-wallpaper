@@ -7,14 +7,21 @@ RUNTIME := metadata.json extension.js prefs.js
 schemas:
 	@if ls schemas/*.xml >/dev/null 2>&1; then glib-compile-schemas --strict schemas/; fi
 
+# A running Shell maps the installed files; overwriting them in place corrupts
+# its compiled schema and aborts it. Stage a copy and swap it in by rename.
 install: schemas
-	mkdir -p "$(EXTDIR)"
-	cp $(RUNTIME) LICENSE "$(EXTDIR)/"
-	cp -a lib prefs "$(EXTDIR)/"
+	mkdir -p "$(dir $(EXTDIR))"
+	rm -rf "$(EXTDIR).new" "$(EXTDIR).old"
+	mkdir "$(EXTDIR).new"
+	cp $(RUNTIME) LICENSE "$(EXTDIR).new/"
+	cp -a lib prefs "$(EXTDIR).new/"
 	@if ls schemas/*.xml >/dev/null 2>&1; then \
-	  mkdir -p "$(EXTDIR)/schemas" && \
-	  cp schemas/*.xml schemas/gschemas.compiled "$(EXTDIR)/schemas/"; \
+	  mkdir -p "$(EXTDIR).new/schemas" && \
+	  cp schemas/*.xml schemas/gschemas.compiled "$(EXTDIR).new/schemas/"; \
 	fi
+	if [ -e "$(EXTDIR)" ]; then mv "$(EXTDIR)" "$(EXTDIR).old"; fi
+	mv "$(EXTDIR).new" "$(EXTDIR)"
+	rm -rf "$(EXTDIR).old"
 
 uninstall:
 	rm -rf "$(EXTDIR)"
