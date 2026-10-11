@@ -2,8 +2,8 @@
 
 - **Milestone:** M2
 - **Depends on:** T03
-- **Status:** todo
-- **Owner:**
+- **Status:** review
+- **Owner:** Claude Code
 - **Skills:** ffprobe, async GJS
 
 ## Goal
@@ -24,8 +24,14 @@ Validate a user-selected file and extract metadata, asynchronously.
 
 ## Acceptance criteria
 
-- [ ] Correct metadata for each sample.
-- [ ] Each error case maps to the right `ProbeError.code`.
-- [ ] Never blocks the main loop.
-- [ ] Anamorphic SAR, 90°/270° rotation and tagged SDR samples expose correct display/color metadata; HDR rejection explains the supported alternative.
-- [ ] Cancel a probe or change selection while probing: no stale settings/preview update and no other caller's work is removed.
+- [x] Correct metadata for each sample.
+- [x] Each error case maps to the right `ProbeError.code`.
+- [x] Never blocks the main loop.
+- [x] Anamorphic SAR, 90°/270° rotation and tagged SDR samples expose correct display/color metadata; HDR rejection explains the supported alternative.
+- [x] Cancel a probe or change selection while probing: no stale settings/preview update and no other caller's work is removed.
+
+## Notes
+
+- `tests/mediaProbe.test.js` generates MP4, MKV, MOV, WebM, GIF, SAR 4:3, 90°/270° rotation, tagged BT.709 SDR and PQ HDR samples with ffmpeg (skipped if ffmpeg/ffprobe are missing), plus text, audio-only, directory and missing-file cases.
+- Main-loop responsiveness is checked by a 1 ms timer ticking during a probe. Cancellation tests cover a cancelled caller beside a surviving caller, a sole cancelled caller settling within 100 ms, and a pre-cancelled call.
+- Stale preview/settings protection on selection change belongs to the prefs caller (T21/T22): probe rejects cancelled waits promptly and never caches results from cancelled shared work.

@@ -151,9 +151,20 @@ Mutter 50 has no `make_below()` or `unset_initiator()`. Verified hiding is `wind
 export class ProbeError extends Error {}
 export async function probe(path, cancellable)
 // -> {path, size, mtime, width, height, sampleAspectRatio, rotation, colorPrimaries,
-//     colorTransfer, colorSpace, colorRange, isHdr, durationSec, codec, frameRate, isGif, hasVideo}
+//     colorTransfer, colorSpace, colorRange, isHdr, durationSec, codec, frameRate, isGif, hasVideo,
+//     codedWidth, codedHeight}
+export function clearProbeCache()
 ```
 Validate SDR/display geometry; reject HDR with an actionable error.
+`width`/`height` are display dimensions (SAR applied, then 90°/270° rotation swapped); `codedWidth`/`codedHeight` are the raw stream size. `rotation` is clockwise degrees in {0, 90, 180, 270}; `sampleAspectRatio` is `"N:D"` (`"1:1"` when unset); `mtime` is microseconds since the epoch; untagged color fields are `null`. `ProbeError.code` is one of `NOT_FOUND`, `NOT_REGULAR`, `NO_VIDEO_STREAM`, `FFPROBE_MISSING`, `FFPROBE_FAILED`, `UNSUPPORTED_HDR`, `INVALID_GEOMETRY`. Results are cached in-process by `path|size|mtime`; concurrent callers share one ffprobe run, which is cancelled only when every caller has cancelled.
+
+## `lib/deps.js` (T11) [shell + prefs]
+
+```js
+export function findProgram(name)             // -> absolute path or null
+export async function checkDependencies(cancellable)
+// -> {mpv, ffmpeg, ffprobe, vaapi} booleans; vaapi from `mpv --hwdec=help`
+```
 
 ## `lib/cacheKey.js` (T12) [pure]
 
