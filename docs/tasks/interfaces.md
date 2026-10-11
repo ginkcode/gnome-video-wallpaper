@@ -247,6 +247,7 @@ export class PauseController {
 ```js
 export function waitForStartup({delayMs, cancellable}) // latched startup-complete + delay; cancellation rejects
 ```
+The testable core is `lib/startupLifecycle.js` `waitForStartupOn(layoutManager, {delayMs, cancellable, onComplete})`. Only `PlayerManager.start()` is gated; logical-monitor players then start sequentially, with `stagger-ms` between them.
 
 ## Visual acceptance boundary
 

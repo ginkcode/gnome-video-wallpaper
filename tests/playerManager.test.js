@@ -8,7 +8,7 @@ import {assertDeepEqual, assertEqual, assertThrows, run, test} from './harness.j
 
 const quiet = {debug() {}, info() {}, warn() {}, error() {}};
 const KEY = 'Virtual-1';
-const BOUNDARIES = ['resolve', 'probe', 'acquire', 'still', 'publish', 'static', 'socket', 'connect', 'load',
+const BOUNDARIES = ['gate', 'resolve', 'probe', 'acquire', 'still', 'publish', 'static', 'socket', 'connect', 'load',
     'content', 'frame', 'fade'];
 
 function cancelledError() {
@@ -26,6 +26,8 @@ class Fixture {
         this.released = [];
         this.acquired = [];
         this.selection = 'video';
+        this.keys = [KEY];
+        this.staggerMs = 0;
     }
 
     gate(name, cancellable, value) {
@@ -53,11 +55,13 @@ class Fixture {
 
     env() {
         return {
-            resolveTarget: ({cancellable}) => this.gate('resolve', cancellable, {
-                logicalMonitorKey: KEY, selectedPhysicalMonitorId: 'Virtual-1:a:b:', monitorIndex: 0,
+            waitForStartup: ({cancellable}) => this.gate('gate', cancellable),
+            staggerMs: () => this.staggerMs,
+            resolveTargets: ({cancellable}) => this.gate('resolve', cancellable, this.keys.map(key => ({
+                logicalMonitorKey: key, selectedPhysicalMonitorId: `${key}:a:b:`, monitorIndex: 0,
                 selectionKey: this.selection, file: `/${this.selection}.mp4`, optimizedPath: null,
-                geometry: {fitMode: 'fill'}, systemWallpaper: true,
-            }),
+                geometry: {fitMode: 'fill'}, systemWallpaper: this.keys.length === 1,
+            }))),
             probe: (path, cancellable) => this.gate('probe', cancellable, {path}),
             acquireAsset: (media, geometry, {cancellable}) => {
                 const asset = {path: `/refs${media.path}`, identity: `${media.path}#fill`,
@@ -171,7 +175,7 @@ test('startup order: still, watch before spawn, subscribe, paused load, both rea
     const fixture = new Fixture();
     const manager = fixture.manager();
     await manager.start();
-    assertDeepEqual(fixture.log, ['resolve', 'probe', 'acquire', 'still', 'publish',
+    assertDeepEqual(fixture.log, ['gate', 'resolve', 'probe', 'acquire', 'still', 'publish',
         'apply:/wallpapers/stills/refs/video.mp4.png', 'static', 'socket', 'watch:false', 'window', 'spawn',
         'connect', 'cmd:keepaspect=true', 'cmd:panscan=1', 'load', 'content', 'attach:window', 'frame', 'fade']);
     assertEqual(fixture.layers[0].shown, '/wallpapers/stills/refs/video.mp4.png', 'published still displayed');
@@ -270,7 +274,7 @@ test('re-enable waits for the previous reap before spawning', async () => {
     const second = fresh.manager();
     const starting = second.start();
     await sleep(10);
-    assertDeepEqual(fresh.log, [], 'nothing before old reap');
+    assertDeepEqual(fresh.log, ['gate'], 'nothing but the gate before old reap');
     old.processes[0].reap();
     await starting;
     assertEqual(fresh.log.includes('spawn'), true);
@@ -384,6 +388,69 @@ test('disable during graceful replacement terminates and removes everything', as
     await sleep(5);
     assertEqual(fixture.processes.length, 1, 'no stale spawn');
     assertDeepEqual(fixture.acquired, [], 'both assets released');
+});
+
+test('players start sequentially with the stagger between them', async () => {
+    const fixture = new Fixture();
+    fixture.keys = ['A', 'B'];
+    fixture.staggerMs = 40;
+    const spawns = [];
+    const env = fixture.env();
+    const createProcess = env.createProcess;
+    env.createProcess = options => {
+        const process = createProcess(options);
+        const start = process.start;
+        process.start = () => {
+            spawns.push(GLib.get_monotonic_time());
+            start();
+        };
+        return process;
+    };
+    const manager = new PlayerManagerLifecycle({env, logger: quiet, fadeMs: 0});
+    await manager.start();
+    assertEqual(fixture.log.indexOf('fade') < fixture.log.lastIndexOf('probe'), true, 'second after first fade');
+    assertEqual((spawns[1] - spawns[0]) / 1000 >= 39, true, 'staggered spawn');
+    assertEqual(fixture.log.some(entry => entry.startsWith('apply:')), false, 'no single-monitor apply');
+    assertEqual(manager.getState('A'), PlayerState.PLAYING);
+    assertEqual(manager.getState('B'), PlayerState.PLAYING);
+    manager.stop();
+    await drainReaps(fixture);
+});
+
+test('disable during the stagger cancels promptly without a second spawn', async () => {
+    const fixture = new Fixture();
+    fixture.keys = ['A', 'B'];
+    fixture.staggerMs = 5000;
+    const manager = fixture.manager();
+    const starting = manager.start();
+    for (let i = 0; i < 50 && !fixture.log.includes('fade'); i++)
+        await sleep(1);
+    manager.stop();
+    const begin = GLib.get_monotonic_time();
+    await starting;
+    assertEqual((GLib.get_monotonic_time() - begin) / 1000 < 100, true, 'prompt');
+    assertEqual(fixture.processes.length, 1, 'one spawn only');
+    await drainReaps(fixture);
+});
+
+test('stale gate completion cannot spawn after re-enable', async () => {
+    const old = new Fixture({held: new Set(['gate'])});
+    const first = old.manager();
+    const starting = first.start();
+    await old.reached('gate');
+    first.stop();
+    const fresh = new Fixture({held: new Set(['gate'])});
+    const second = fresh.manager();
+    const restarting = second.start();
+    await fresh.reached('gate');
+    old.gates.get('gate').resolve();
+    await starting;
+    assertDeepEqual(old.log, ['gate'], 'old lifecycle did nothing');
+    fresh.release('gate');
+    await restarting;
+    assertEqual(fresh.processes.length, 1, 'only the new lifecycle spawns');
+    second.stop();
+    await drainReaps(fresh);
 });
 
 test('start twice without stop is rejected; setPaused validates arguments', async () => {

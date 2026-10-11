@@ -32,6 +32,7 @@ test('buildMpvArgv builds base arguments with priority prefix', () => {
         '--loop-file=inf',
         '--hwdec=vaapi',
         '--cache=no',
+        '--demuxer-max-bytes=32MiB',
         '--osc=no',
         '--osd-level=0',
         '--input-default-bindings=no',

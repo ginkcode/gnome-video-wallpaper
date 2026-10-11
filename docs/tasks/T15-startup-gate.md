@@ -2,8 +2,8 @@
 
 - **Milestone:** M3
 - **Depends on:** T09
-- **Status:** todo
-- **Owner:**
+- **Status:** review
+- **Owner:** Claude Code
 - **Skills:** GNOME Shell startup
 
 ## Goal
@@ -22,8 +22,18 @@ Never compete with the session for CPU/disk/GPU during login.
 
 ## Acceptance criteria
 
-- [ ] On login, journal shows mpv spawned only after `startup-complete + delay`.
-- [ ] `enable()` duration < 5 ms (log it).
-- [ ] With 2 monitors, spawns are staggered.
-- [ ] `disable()` during the delay cancels cleanly with no spawn.
-- [ ] Completion immediately before/after listener registration never hangs; disable during completion or stagger cancels promptly, and stale gate completion cannot spawn after re-enable.
+- [ ] On login, journal shows mpv spawned only after `startup-complete + delay`. Debug logs record each timestamp, and the order is unit-tested. A real-login journal has not been captured.
+- [ ] `enable()` duration < 5 ms (log it). Logged at debug level; not yet measured in a session.
+- [ ] With 2 monitors, spawns are staggered. Unit-tested with two targets. The real resolver still returns only the primary monitor until T25.
+- [x] `disable()` during the delay cancels cleanly with no spawn.
+- [x] Completion immediately before/after listener registration never hangs; disable during completion or stagger cancels promptly, and stale gate completion cannot spawn after re-enable.
+
+## Notes
+
+- `lib/startupLifecycle.js` holds the testable core, `waitForStartupOn(layoutManager, ...)`. `lib/startupGate.js` binds it to `Main.layoutManager`.
+  - The core connects `startup-complete` before reading `_startingUp`. A completion seen by both the signal and the flag counts once.
+  - Cancellation removes the signal handler and the delay source.
+- Only `start()` is gated; `reconcile()` is not. A gated start always runs even if a reconcile queued behind it.
+- Players start one after another: each reaches fade-in before the cancellable `stagger-ms` sleep that precedes the next.
+- Low priority was already `nice -n 10 ionice -c3` with `--cache=no`; this task adds `--demuxer-max-bytes=32MiB`.
+- A headless nested T09 run (3 cycles) with the default 3 s delay played normally, never had more than one player, and logged no errors.
