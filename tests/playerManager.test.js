@@ -65,7 +65,7 @@ class Fixture {
             onStop: ({restore}) => this.stops.push(restore),
             resolveTargets: ({cancellable}) => this.gate('resolve', cancellable, this.keys.map(key => ({
                 logicalMonitorKey: key, selectedPhysicalMonitorId: `${key}:a:b:`, monitorIndex: 0,
-                selectionKey: this.selection, file: `/${this.selection}.mp4`, optimizedPath: null,
+                selectionKey: this.selection, file: `/${this.selection}.mp4`, optimize: false,
                 geometry: {fitMode: 'fill'}, systemWallpaper: this.keys.length === 1,
             }))),
             probe: (path, cancellable) => this.gate('probe', cancellable, {path}),

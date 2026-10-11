@@ -204,8 +204,13 @@ If optimized media is absent or disappears during acquisition, choose the origin
 ```js
 export async function ensureOptimized(media, {width, height, scale, fitMode, transformVersion}, {onProgress, cancellable})
 // -> completed MP4 path (SDR H.264, VA-API decodable); geometry already baked
+export function optimizedPath(media, geometry)              // <cacheRoot>/media/<cacheKey kind 'media'>.mp4
+export function shouldOptimize(media, config, optimizeVideos) // GIF always, else config.optimize ?? optimizeVideos
+export function canOptimize(geometry)                       // even raster width/height (H.264 4:2:0)
 ```
-Include fitMode and versioned transformation in identity; normalize SAR/rotation and preserve consistent SDR interpretation. Unique temps and atomic publication follow cache ownership rules.
+Include fitMode and versioned transformation in identity; normalize SAR/rotation and preserve consistent SDR interpretation. Unique temps and atomic publication follow cache ownership rules. `onProgress(fraction)` is called only while ffmpeg runs, not for an existing entry. Odd rasters throw `CacheError('INVALID_GEOMETRY')`; other failures throw `TRANSCODE_FAILED`, `SOURCE_CHANGED` or `FFMPEG_MISSING`. VA-API failures fall back to libx264 per call. `lib/async.js` gains `spawnLines(argv, {cancellable, onLine})` (stdout and stderr merged; resolves to the exit status, 128+signal when killed).
+
+The shell never transcodes. Targets carry `optimize` (`config.optimize ?? optimize-videos`, part of `selectionKey`); the `acquireAsset` env hook passes `optimizedPath(media, geometry)` when `shouldOptimize` and `canOptimize` hold, so a missing entry falls back to the original.
 
 ## `lib/wallpaperSync.js` (T13) [shell]
 
@@ -279,12 +284,12 @@ The testable core is `lib/startupLifecycle.js` `waitForStartupOn(layoutManager, 
 export function buildMonitorModel({physicalMonitors, logicalMonitors}, configs)
 // -> {groups: [{logical, mirrored, effectiveId, members: [{physical, config, effective}]}], others: [{id, config, connector, title, serial}]}
 export function modelLayout(model) // topology signature; config-only changes update rows in place
-export async function applySelection({file, logical, defaultFitMode, probe, readConfig, writeConfig, cancellable})
-export async function loadPreview({file, geometry, probe, acquire, ensureStill, release, cancellable}) // releases the asset
+export async function applySelection({file, logical, defaultFitMode, probe, readConfig, writeConfig, prepare, cancellable})
+export async function loadPreview({file, geometry, probe, acquire, ensureStill, release, optimizedPathFor, cancellable}) // releases the asset
 export class LatestJobs { run(key, task) /* -> {value}|{error}|{cancelled: true} */; cancel(key); close(); get pending() }
 export const MonitorsPage // Adw.PreferencesPage({settings, toast}); close() cancels jobs and disconnects
 ```
-`applySelection` writes only after a successful probe, a valid target raster and an uncancelled job; it keeps the stored fit mode and optimize flag. Previews use `targetGeometry`, so they pre-warm the extension's still cache.
+`applySelection` writes only after a successful probe, a valid target raster and an uncancelled job; it keeps the stored fit mode and optimize flag. T23: `prepare(media, geometry, config, cancellable)` runs before the write (the page transcodes there, so a GIF is saved only after its optimized file exists). Previews use `targetGeometry`, so they pre-warm the extension's still cache.
 
 ## `prefs/generalPage.js`, `prefs/diagnosticsPage.js`, `prefs/bindings.js`, `prefs/diagnostics.js` (T22) [prefs]
 

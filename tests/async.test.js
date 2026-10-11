@@ -1,7 +1,7 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
-import {sleep, spawnAsync, waitUntil} from '../lib/async.js';
+import {sleep, spawnAsync, spawnLines, waitUntil} from '../lib/async.js';
 
 let failures = 0;
 
@@ -36,6 +36,24 @@ const loop = GLib.MainLoop.new(null, false);
         assert(false, 'cancelled child should reject');
     } catch (error) {
         assert(isCancelled(error), `child cancellation error ${error}`);
+    }
+
+    const lines = [];
+    const lineStatus = await spawnLines(['sh', '-c', 'echo one; echo two >&2; printf three; exit 3'],
+        {onLine: line => lines.push(line)});
+    assert(lineStatus === 3 && lines.join() === 'one,two,three', `lines ${lineStatus} ${lines}`);
+    assert(await spawnLines(['sh', '-c', 'kill -TERM $$']) === 128 + 15, 'signal status');
+
+    const lineCancel = new Gio.Cancellable();
+    const streaming = spawnLines(['sh', '-c', 'while :; do echo tick; sleep 0.01; done'], {
+        cancellable: lineCancel,
+        onLine: () => lineCancel.cancel(),
+    });
+    try {
+        await streaming;
+        assert(false, 'cancelled lines should reject');
+    } catch (error) {
+        assert(isCancelled(error), `lines cancellation error ${error}`);
     }
 
     const sleepCancel = new Gio.Cancellable();

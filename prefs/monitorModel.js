@@ -46,7 +46,8 @@ function validRaster({width, height}) {
     return Number.isInteger(width) && Number.isInteger(height) && width > 0 && height > 0;
 }
 
-export async function applySelection({file, logical, defaultFitMode, probe, readConfig, writeConfig, cancellable}) {
+export async function applySelection({file, logical, defaultFitMode, probe, readConfig, writeConfig, prepare = null,
+    cancellable}) {
     const media = await probe(file, cancellable);
     cancellable.set_error_if_cancelled();
     const current = readConfig();
@@ -54,13 +55,19 @@ export async function applySelection({file, logical, defaultFitMode, probe, read
     const geometry = targetGeometry(logical, fitMode ?? defaultFitMode());
     if (!validRaster(geometry))
         throw new Error('This display reports an invalid size. Reconnect it and try again.');
-    writeConfig({file, fitMode, optimize: current?.optimize ?? null});
+    if (prepare) {
+        await prepare(media, geometry, {file, fitMode, optimize: current?.optimize ?? null}, cancellable);
+        cancellable.set_error_if_cancelled();
+    }
+    const latest = readConfig();
+    writeConfig({file, fitMode: latest?.fitMode ?? null, optimize: latest?.optimize ?? null});
     return {media, geometry};
 }
 
-export async function loadPreview({file, geometry, probe, acquire, ensureStill, release, cancellable}) {
+export async function loadPreview({file, geometry, probe, acquire, ensureStill, release, optimizedPathFor = () => null,
+    cancellable}) {
     const media = await probe(file, cancellable);
-    const asset = await acquire(media, geometry, {cancellable});
+    const asset = await acquire(media, geometry, {cancellable, optimizedPath: optimizedPathFor(media, geometry)});
     try {
         return await ensureStill(asset, geometry, cancellable);
     } finally {

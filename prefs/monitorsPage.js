@@ -6,9 +6,10 @@ import Gtk from 'gi://Gtk';
 
 import {readMonitorConfigs, removeMonitorConfig, writeMonitorConfig} from '../lib/config.js';
 import {targetGeometry} from '../lib/geometry.js';
-import {probe} from '../lib/mediaProbe.js';
+import {ProbeError, probe} from '../lib/mediaProbe.js';
 import {getMonitors} from '../lib/monitorIdentity.js';
 import {acquirePlaybackAsset, ensureStill, releasePlaybackAsset} from '../lib/stillCache.js';
+import {canOptimize, ensureOptimized, optimizedPath, shouldOptimize} from '../lib/transcoder.js';
 import {LatestJobs} from './latestJobs.js';
 import {applySelection, buildMonitorModel, loadPreview, modelLayout} from './monitorModel.js';
 
@@ -16,6 +17,7 @@ Gio._promisify(Gtk.FileDialog.prototype, 'open', 'open_finish');
 
 const FIT_MODES = [null, 'fill', 'fit', 'stretch'];
 const FIT_LABELS = {fill: 'Fill', fit: 'Fit', stretch: 'Stretch'};
+const OPTIMIZE_CHOICES = [null, true, false];
 
 function formatScale(scale) {
     return `${Number(scale.toFixed(2))}×`;
@@ -71,6 +73,11 @@ class MonitorSection {
         this._fileRow.set_activatable_widget(choose);
         this.widget.add(this._fileRow);
 
+        this._progress = new Gtk.ProgressBar({show_text: true, valign: Gtk.Align.CENTER, hexpand: true});
+        this._progressRow = new Adw.ActionRow({title: 'Optimizing', visible: false});
+        this._progressRow.add_suffix(this._progress);
+        this.widget.add(this._progressRow);
+
         this._previewStack = new Gtk.Stack({height_request: 150, margin_top: 6, margin_bottom: 6,
             margin_start: 6, margin_end: 6});
         this._picture = new Gtk.Picture({content_fit: Gtk.ContentFit.CONTAIN, can_shrink: true});
@@ -88,6 +95,14 @@ class MonitorSection {
                 page.setFitMode(this._id, FIT_MODES[this._fitRow.selected] ?? null);
         });
         this.widget.add(this._fitRow);
+
+        this._optimizeRow = new Adw.ComboRow({title: 'Optimize video', model: new Gtk.StringList(),
+            subtitle: 'Plays a display-sized copy that needs less power. GIFs are always optimized.'});
+        this._optimizeRow.connect('notify::selected', () => {
+            if (!this._updating)
+                page.setOptimize(this._id, OPTIMIZE_CHOICES[this._optimizeRow.selected] ?? null);
+        });
+        this.widget.add(this._optimizeRow);
         this.update(member);
     }
 
@@ -98,22 +113,45 @@ class MonitorSection {
         this._fitRow.model.splice(0, this._fitRow.model.get_n_items(),
             [`Default (${FIT_LABELS[defaultFit] ?? defaultFit})`, ...FIT_MODES.slice(1).map(mode => FIT_LABELS[mode])]);
         this._fitRow.selected = Math.max(0, FIT_MODES.indexOf(config?.fitMode ?? null));
+        const defaultOptimize = this._page.optimizeVideos() ? 'On' : 'Off';
+        this._optimizeRow.model.splice(0, this._optimizeRow.model.get_n_items(),
+            [`Default (${defaultOptimize})`, 'On', 'Off']);
+        this._optimizeRow.selected = Math.max(0, OPTIMIZE_CHOICES.indexOf(config?.optimize ?? null));
         this._updating = false;
         this._fitRow.sensitive = Boolean(config);
+        this._optimizeRow.sensitive = Boolean(config);
         this._remove.sensitive = Boolean(config);
         this._fileRow.subtitle = config ? GLib.markup_escape_text(GLib.path_get_basename(config.file), -1) : 'None';
         this._fileRow.tooltip_text = config?.file ?? '';
         this._status.label = member.effective ? 'In use' : config ? 'Not used' : '';
-        this._showPreview(config ? {file: config.file,
-            geometry: targetGeometry(this._logical, config.fitMode ?? defaultFit)} : null);
+        const request = config ? {file: config.file, optimize: this._page.optimizeEnabled(config),
+            geometry: targetGeometry(this._logical, config.fitMode ?? defaultFit)} : null;
+        if (request)
+            this._page.refreshOptimized(this._id, request);
+        this._showPreview(request);
     }
 
     setBusy(busy) {
         this._spinner.visible = busy;
     }
 
+    setProgress(fraction) {
+        this._progressRow.visible = fraction !== null;
+        if (fraction !== null) {
+            this._progress.fraction = fraction;
+            this._progress.text = `${Math.round(fraction * 100)}%`;
+        }
+    }
+
+    refreshPreview() {
+        this._showPreview(this._request);
+    }
+
     _showPreview(request) {
-        const key = request ? JSON.stringify([request.file, request.geometry]) : null;
+        this._request = request;
+        const key = request
+            ? JSON.stringify([request.file, request.geometry, request.optimize, this._page.optimizedGeneration(this._id)])
+            : null;
         if (key === this._previewKey)
             return;
         this._previewKey = key;
@@ -145,13 +183,15 @@ class MonitorsPage extends Adw.PreferencesPage {
         this._toast = toast;
         this._jobs = new LatestJobs();
         this._stills = new Map();
+        this._optimizeKeys = new Map();
+        this._generations = new Map();
         this._groups = [];
         this._sections = new Map();
         this._monitors = null;
         this._layout = null;
         this._idle = 0;
         this._cancellable = new Gio.Cancellable();
-        this._settingsIds = ['changed::monitor-configs', 'changed::default-fit-mode'].map(signal =>
+        this._settingsIds = ['changed::monitor-configs', 'changed::default-fit-mode', 'changed::optimize-videos'].map(signal =>
             settings.connect(signal, () => this._queueRender()));
         this._monitorsSignal = Gio.DBus.session.signal_subscribe('org.gnome.Mutter.DisplayConfig',
             'org.gnome.Mutter.DisplayConfig', 'MonitorsChanged', '/org/gnome/Mutter/DisplayConfig', null,
@@ -175,6 +215,61 @@ class MonitorsPage extends Adw.PreferencesPage {
 
     defaultFitMode() {
         return this._settings.get_string('default-fit-mode');
+    }
+
+    optimizeVideos() {
+        return this._settings.get_boolean('optimize-videos');
+    }
+
+    optimizeEnabled(config) {
+        return config.optimize ?? this.optimizeVideos();
+    }
+
+    optimizedGeneration(id) {
+        return this._generations.get(id) ?? 0;
+    }
+
+    _optimizedFor(optimize) {
+        return (media, geometry) => shouldOptimize(media, {optimize}, false) && canOptimize(geometry)
+            ? optimizedPath(media, geometry)
+            : null;
+    }
+
+    async _optimize(id, media, geometry, optimize, cancellable) {
+        if (!this._optimizedFor(optimize)(media, geometry))
+            return false;
+        let produced = false;
+        try {
+            await ensureOptimized(media, geometry, {cancellable, onProgress: fraction => {
+                produced = true;
+                this._sections.get(id)?.setProgress(fraction);
+            }});
+        } finally {
+            this._sections.get(id)?.setProgress(null);
+        }
+        return produced;
+    }
+
+    refreshOptimized(id, {file, geometry, optimize}) {
+        const key = JSON.stringify([file, geometry, optimize]);
+        if (this._optimizeKeys.get(id) === key)
+            return;
+        this._optimizeKeys.set(id, key);
+        this._runOptimize(id, file, geometry, optimize);
+    }
+
+    async _runOptimize(id, file, geometry, optimize) {
+        const result = await this._jobs.run(`optimize:${id}`, async cancellable =>
+            this._optimize(id, await probe(file, cancellable), geometry, optimize, cancellable));
+        if (result.cancelled)
+            return;
+        if (result.error && !(result.error instanceof ProbeError)) {
+            this._toast(`Could not optimize ${GLib.path_get_basename(file)}: ${result.error.message} ` +
+                'The original video is played instead.');
+        } else if (result.value) {
+            this._generations.set(id, this.optimizedGeneration(id) + 1);
+            this._sections.get(id)?.refreshPreview();
+        }
     }
 
     async choose(id, logical) {
@@ -207,6 +302,8 @@ class MonitorsPage extends Adw.PreferencesPage {
             defaultFitMode: () => this.defaultFitMode(),
             readConfig: () => readMonitorConfigs(this._settings)[id] ?? null,
             writeConfig: config => writeMonitorConfig(this._settings, id, config),
+            prepare: (media, geometry, config, cancellable) =>
+                this._optimize(id, media, geometry, this.optimizeEnabled(config), cancellable),
         }));
         if (result.cancelled)
             return;
@@ -221,8 +318,17 @@ class MonitorsPage extends Adw.PreferencesPage {
             writeMonitorConfig(this._settings, id, {...current, fitMode});
     }
 
+    setOptimize(id, optimize) {
+        const current = readMonitorConfigs(this._settings)[id];
+        if (current && current.optimize !== optimize)
+            writeMonitorConfig(this._settings, id, {...current, optimize});
+    }
+
     removeConfig(id) {
         this._jobs.cancel(`select:${id}`);
+        this._jobs.cancel(`optimize:${id}`);
+        this._optimizeKeys.delete(id);
+        this._sections.get(id)?.setProgress(null);
         this._sections.get(id)?.setBusy(false);
         removeMonitorConfig(this._settings, id);
     }
@@ -231,12 +337,13 @@ class MonitorsPage extends Adw.PreferencesPage {
         this._jobs.cancel(`preview:${id}`);
     }
 
-    async preview(id, key, {file, geometry}) {
+    async preview(id, key, {file, geometry, optimize}) {
         const cached = this._stills.get(key);
         if (cached && GLib.file_test(cached, GLib.FileTest.IS_REGULAR))
             return {value: cached};
         const result = await this._jobs.run(`preview:${id}`, cancellable => loadPreview({file, geometry,
-            cancellable, probe, acquire: acquirePlaybackAsset, ensureStill, release: releasePlaybackAsset}));
+            cancellable, probe, acquire: acquirePlaybackAsset, ensureStill, release: releasePlaybackAsset,
+            optimizedPathFor: this._optimizedFor(optimize)}));
         if (result.value)
             this._stills.set(key, result.value);
         return result;
@@ -291,8 +398,11 @@ class MonitorsPage extends Adw.PreferencesPage {
                 this._addGroup(section.widget);
             }
         }
-        for (const id of previous.filter(id => !this._sections.has(id)))
+        for (const id of previous.filter(id => !this._sections.has(id))) {
             this.cancelPreview(id);
+            this._jobs.cancel(`optimize:${id}`);
+            this._optimizeKeys.delete(id);
+        }
         if (this._error || model.groups.length === 0) {
             const group = new Adw.PreferencesGroup();
             group.add(new Adw.ActionRow({title: 'No displays found', subtitle: this._error ?? '',
