@@ -224,6 +224,9 @@ export class PlayerManager {
     stop({restore = false} = {})            // synchronous invalidate/cleanup/terminateNow; no awaited shell work
     async reconcile()
     setPaused(logicalMonitorKey, reason, paused) // reasons combine with OR
+    get targets()                            // last resolved targets; [] after stop()
+    onTargets(callback)                      // -> unsubscribe; callback(targets) after each resolution
+    ownsWindow(metaWindow)                   // any live or still-reaping player window
 }
 ```
 One live player per logical monitor, including replacements. Startup: acquire selected asset + matching published still; prepare static; install window listener; spawn idle; connect/subscribe IPC; load paused asset; await both latched readiness conditions; fade; remove only `startup` pause reason. Battery/coverage/overview reasons remain authoritative.
@@ -252,6 +255,8 @@ export class PauseController {
     disable()
 }
 ```
+
+T19: the shell wrapper delegates to `lib/coverageController.js` [pure, injected]: `coveredMonitors(windows, {workspace, isOwn, normalType, maximizeBoth})` and `CoverageController({playerManager, settings, display, workspaceManager, normalType, maximizeBoth, debounceMs = 200})` with `enable()`/`disable()`. It sets the `covered` reason per target key and recomputes, debounced, on display, workspace, window and `pause-on-maximized` changes.
 
 ## `lib/startupGate.js` (T15) [shell]
 

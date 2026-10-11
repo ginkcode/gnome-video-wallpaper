@@ -33,7 +33,7 @@ Read first:
 | [T16](T16-player-supervisor.md) | Bounded retries and failure notification | M3 | T09, T14 | review | Claude Code |
 | [T17](T17-lock-and-disable.md) | Lock/unlock and disable semantics | M3 | T13, T14, T15 | review | Claude Code |
 | [T18](T18-login-performance.md) | Login performance measurement | M3 | T14, T15, T16, T17 | todo | |
-| [T19](T19-pause-coverage.md) | Pause on maximized/fullscreen coverage | M4 | T05, T09 | todo | |
+| [T19](T19-pause-coverage.md) | Pause on maximized/fullscreen coverage | M4 | T05, T09 | review | Claude Code |
 | [T20](T20-pause-overview-battery.md) | Pause on Overview and battery | M4 | T19 | todo | |
 | [T21](T21-prefs-monitors.md) | Preferences: per-monitor page | M5 | T02, T05, T11, T12 | todo | |
 | [T22](T22-prefs-general-diagnostics.md) | Preferences: general, diagnostics, cache | M5 | T02, T11, T12 | todo | |

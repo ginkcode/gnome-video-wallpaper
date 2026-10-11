@@ -5,6 +5,7 @@ import {getLoginManager} from 'resource:///org/gnome/shell/misc/loginManager.js'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {createLogger, setDebugEnabled} from './lib/log.js';
+import {PauseController} from './lib/pauseController.js';
 import {PlayerManager} from './lib/playerManager.js';
 import {isLockedSession, watchSleep} from './lib/sessionLifecycle.js';
 
@@ -27,6 +28,8 @@ export default class GinkVideoWallpaper extends Extension {
                 start();
             },
         });
+        this._pause = new PauseController({playerManager: this._manager, settings: this._settings});
+        this._pause.enable();
         start();
         const end = GLib.get_monotonic_time();
         log.debug(`enable at ${Math.round(begin / 1000)} ms took ${((end - begin) / 1000).toFixed(2)} ms`);
@@ -35,6 +38,8 @@ export default class GinkVideoWallpaper extends Extension {
     disable() {
         this._unwatchSleep?.();
         this._unwatchSleep = null;
+        this._pause?.disable();
+        this._pause = null;
         this._manager?.stop({restore: !isLockedSession(Main.sessionMode)});
         this._manager = null;
         this._settings = null;

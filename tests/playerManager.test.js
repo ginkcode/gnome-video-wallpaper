@@ -135,6 +135,7 @@ class Fixture {
                     terminateNow: () => {
                         process.terminated = true;
                     },
+                    ownsWindow: window => window === `window:${fixture.processes.indexOf(process)}`,
                     stop: ({graceMs}) => {
                         fixture.log.push(`stop:${graceMs}`);
                         return process.reaped;
@@ -584,6 +585,28 @@ test('stop forwards the restore choice; repeated sleep/resume keeps one live pla
     }
     manager.stop({restore: true});
     assertDeepEqual(fixture.stops, [false, false, false, false, false, true]);
+    await drainReaps(fixture);
+});
+
+test('resolved targets are published and live player windows are recognised until reaped', async () => {
+    const fixture = new Fixture();
+    const manager = fixture.manager();
+    const seen = [];
+    const unsubscribe = manager.onTargets(targets => seen.push(targets.map(target => target.logicalMonitorKey)));
+    await manager.start();
+    assertDeepEqual(seen, [[KEY]]);
+    assertEqual(manager.targets[0].monitorIndex, 0);
+    assertEqual(manager.ownsWindow('window:0'), true, 'live window');
+    assertEqual(manager.ownsWindow('window:1'), false, 'foreign window');
+    manager.stop();
+    assertDeepEqual(manager.targets, [], 'targets cleared on stop');
+    assertEqual(manager.ownsWindow('window:0'), true, 'still owned while reaping');
+    await drainReaps(fixture);
+    assertEqual(manager.ownsWindow('window:0'), false, 'released after reap');
+    unsubscribe();
+    await manager.start();
+    assertEqual(seen.length, 1, 'unsubscribed');
+    manager.stop();
     await drainReaps(fixture);
 });
 
