@@ -4,6 +4,7 @@ import {
     computeCanvas,
     FitMode,
     TRANSFORM_VERSION,
+    targetGeometry,
 } from '../lib/geometry.js';
 import {test, assertEqual, assertDeepEqual, assertThrows, run} from './harness.js';
 
@@ -12,6 +13,11 @@ test('constants', () => {
     assertEqual(FitMode.FILL, 'fill');
     assertEqual(FitMode.FIT, 'fit');
     assertEqual(FitMode.STRETCH, 'stretch');
+});
+
+test('target geometry is the scaled logical raster', () => {
+    assertDeepEqual(targetGeometry({width: 1707, height: 960, scale: 1.5}, FitMode.FIT),
+        {width: 2561, height: 1440, scale: 1.5, fitMode: 'fit', transformVersion: TRANSFORM_VERSION});
 });
 
 test('fill mode crops excess dimension', () => {

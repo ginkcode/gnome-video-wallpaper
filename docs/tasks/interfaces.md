@@ -46,6 +46,8 @@ export function computePlacement(srcW, srcH, dstW, dstH, mode)
 // -> {x, y, width, height}; source dimensions already SAR/rotation normalized
 export function ffmpegScaleFilter(dstW, dstH, mode)
 // -> filter producing exactly dstW x dstH; FIT pads black
+export function targetGeometry({width, height, scale}, fitMode)
+// -> Geometry for a logical monitor's raster; shared by PlayerManager and the prefs preview
 export function computeCanvas(logicalMonitors, rasterScale)
 // -> {originX, originY, width, height, rasterScale, rectangles: [{key, x, y, width, height}]}
 ```
@@ -266,6 +268,19 @@ T20: `lib/sessionPauseController.js` [pure, injected] `SessionPauseController({p
 export function waitForStartup({delayMs, cancellable}) // latched startup-complete + delay; cancellation rejects
 ```
 The testable core is `lib/startupLifecycle.js` `waitForStartupOn(layoutManager, {delayMs, cancellable, onComplete})`. Only `PlayerManager.start()` is gated; logical-monitor players then start sequentially, with `stagger-ms` between them.
+
+## `prefs/monitorModel.js`, `prefs/latestJobs.js`, `prefs/monitorsPage.js` (T21) [prefs]
+
+```js
+export function buildMonitorModel({physicalMonitors, logicalMonitors}, configs)
+// -> {groups: [{logical, mirrored, effectiveId, members: [{physical, config, effective}]}], others: [{id, config, connector, title, serial}]}
+export function modelLayout(model) // topology signature; config-only changes update rows in place
+export async function applySelection({file, logical, defaultFitMode, probe, readConfig, writeConfig, cancellable})
+export async function loadPreview({file, geometry, probe, acquire, ensureStill, release, cancellable}) // releases the asset
+export class LatestJobs { run(key, task) /* -> {value}|{error}|{cancelled: true} */; cancel(key); close(); get pending() }
+export const MonitorsPage // Adw.PreferencesPage({settings, toast}); close() cancels jobs and disconnects
+```
+`applySelection` writes only after a successful probe, a valid target raster and an uncancelled job; it keeps the stored fit mode and optimize flag. Previews use `targetGeometry`, so they pre-warm the extension's still cache.
 
 ## Visual acceptance boundary
 
