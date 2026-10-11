@@ -182,7 +182,7 @@ export function releasePlaybackAsset(asset)   // only caller-owned reference, af
 export async function ensureStill(asset, geometry, cancellable)
 // -> completed PNG path from that exact asset; do not fit twice
 export async function publishWallpaper(stillPath, cancellable)
-// -> immutable persistent PNG path, atomically published from a unique producer temp
+// -> immutable persistent PNG path (content-addressed), atomically published from a unique producer temp
 // acquire a private input reference first; retry/regenerate if clear-cache raced acquisition
 export async function composeSpanned(stills /* [{path, key}] */, canvas, cancellable)
 // -> completed PNG path using computeCanvas rectangles (T26)
@@ -190,6 +190,7 @@ export async function composeSpanned(stills /* [{path, key}] */, canvas, cancell
 export async function clearCache(cancellable)
 // -> {removedBytes, preservedActiveBytes, preservedWallpaperBytes}
 ```
+`ensureStill` and `releasePlaybackAsset` accept only assets returned by `acquirePlaybackAsset` in the same process. `CacheError.code` is one of `SOURCE_CHANGED`, `SOURCE_MISSING`, `NOT_ACQUIRED`, `STILL_MISSING`, `FFMPEG_MISSING`, `FFMPEG_FAILED`, `INVALID_STILL`, `INVALID_GEOMETRY`. `releasePlaybackAsset` returns a Promise that callers may ignore. `asset.identity` is `<original|optimized>:<path>|<size>|<mtime>|<WxH@scale>|<fitMode>|v<transformVersion>`.
 If optimized media is absent or disappears during acquisition, choose the original, acquire it, and prepare its matching still before handoff. Never silently change assets after still selection. No transcode during login. Clear-cache deletes a snapshot of eligible completed entries, not working directories, private active references or published wallpapers. Cancellation cleans only the caller's job/temp files, not another process's producer or shared publication.
 
 ## `lib/transcoder.js` (T23) [shell + prefs]

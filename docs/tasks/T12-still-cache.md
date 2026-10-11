@@ -2,8 +2,8 @@
 
 - **Milestone:** M2
 - **Depends on:** T04, T11
-- **Status:** todo
-- **Owner:**
+- **Status:** review
+- **Owner:** Claude Code
 - **Skills:** ffmpeg, async GJS
 
 ## Goal
@@ -24,12 +24,20 @@ Acquire the exact playback bytes and generate their matching still with identica
 
 ## Acceptance criteria
 
-- [ ] Still dimensions equal target raster geometry for fill/fit/stretch; optimized geometry-baked FIT/STRETCH are not fitted again.
-- [ ] Second call returns cached path without spawning ffmpeg.
-- [ ] Changing file mtime or fit mode produces a new key.
-- [ ] GIF input produces the first GIF frame.
-- [ ] Original/optimized choice, fitMode and transformVersion each affect identity; still extraction uses exactly the acquired asset bytes. Missing/deleted optimized media selects an acquired original and its matching still before handoff.
-- [ ] Clear cache during acquisition, active playback, extraction and publication is safe; only snapshot-eligible completed entries disappear, active/private/published paths remain usable. A clear-cache race against `publishWallpaper` retries or regenerates its private input rather than publishing a missing/partial file.
-- [ ] Cancelling a non-spawn or prefs consumer releases only its own playback/input reference and temp; another caller's reference, producer and shared publication remain intact.
-- [ ] Concurrent shell/prefs same-key producers use distinct temps and publish valid complete files; cancelling one caller leaves the other producer/result intact.
-- [ ] Source replacement/deletion and cancellation at each await cannot publish/apply a stale wallpaper; persistent wallpaper remains valid after cache clearing and extension restore.
+- [x] Still dimensions equal target raster geometry for fill/fit/stretch; optimized geometry-baked FIT/STRETCH are not fitted again.
+- [x] Second call returns cached path without spawning ffmpeg.
+- [x] Changing file mtime or fit mode produces a new key.
+- [x] GIF input produces the first GIF frame.
+- [x] Original/optimized choice, fitMode and transformVersion each affect identity; still extraction uses exactly the acquired asset bytes. Missing/deleted optimized media selects an acquired original and its matching still before handoff.
+- [x] Clear cache during acquisition, active playback, extraction and publication is safe; only snapshot-eligible completed entries disappear, active/private/published paths remain usable. A clear-cache race against `publishWallpaper` retries or regenerates its private input rather than publishing a missing/partial file.
+- [x] Cancelling a non-spawn or prefs consumer releases only its own playback/input reference and temp; another caller's reference, producer and shared publication remain intact.
+- [x] Concurrent shell/prefs same-key producers use distinct temps and publish valid complete files; cancelling one caller leaves the other producer/result intact.
+- [x] Source replacement/deletion and cancellation at each await cannot publish/apply a stale wallpaper; persistent wallpaper remains valid after cache clearing and extension restore.
+
+## Notes
+
+- Private references are hard links (`ln -L`) or metadata-preserving copies under `~/.cache/gink-video-wallpaper/refs/<pid>-<uuid>/`; see [../settings.md](../settings.md#cache-layout). A source on another filesystem is copied, which costs time and space for large originals.
+- Untagged YUV sources use mpv's guess (BT.709 when ≥1280 wide or >576 high, else BT.601) and limited range; tagged matrices/ranges are passed to `scale`. GIF/RGB input is not color-converted. Primaries/transfer are not converted (SDR only).
+- Publications are named by the PNG's SHA-256, so republishing identical content reuses one immutable file.
+- Concurrent producers are tested with a second module instance (separate in-memory deduplication); a true second process is not exercised. "Restore" is T13; here, publications are shown to survive repeated clear-cache.
+- Not yet wired into `PlayerManager`; that is T14.
