@@ -88,6 +88,15 @@ test('a saved position is resumed and kept when the list is edited', () => {
     assertEqual(playlist.fileFor('M', ['/a.mp4', '/b.mp4']), '/a.mp4', 'restarts when the current file is removed');
 });
 
+test('every pick is stored so preferences show the playing file', () => {
+    const {settings, playlist} = setup({'playlist-order': 'random',
+        'playlist-state': JSON.stringify({M: '/stale.mp4', N: '/kept.mp4'})}, {random: () => 0.7});
+    assertEqual(playlist.fileFor('M', FILES), '/c.gif');
+    assertDeepEqual(JSON.parse(settings.values['playlist-state']), {M: '/c.gif', N: '/kept.mp4'}, 'random start');
+    playlist.fileFor('M', ['/a.mp4', '/b.mp4']);
+    assertDeepEqual(JSON.parse(settings.values['playlist-state']).M, '/b.mp4', 'random restart after removal');
+});
+
 test('random order picks a random start and a different next file', () => {
     const {playlist} = setup({'playlist-order': 'random'}, {random: () => 0.7});
     assertEqual(playlist.fileFor('M', FILES), '/c.gif');

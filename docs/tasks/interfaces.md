@@ -333,7 +333,7 @@ export function nextIndex(index, count, order, random = Math.random) // sequenti
 export class Playlist {
     constructor({settings, onChange, random, minuteMs = 60000, logger})
     enable(); disable()
-    fileFor(physicalMonitorId, files)  // current file; resumes from playlist-state, keeps it across list edits
+    fileFor(physicalMonitorId, files)  // current file; resumes from playlist-state, keeps it across list edits, stores every pick
     advance()                          // -> boolean; moves every multi-file playlist, persists, calls onChange
 }
 ```
