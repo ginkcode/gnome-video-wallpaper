@@ -24,7 +24,7 @@ Read first:
 | [T07](T07-player-process.md) | mpv player process | M1 | T03, T04 | done | Claude Code |
 | [T08](T08-background-layer.md) | Background layer (window hide + clone) | M1 | T03, T07 | done | Claude Code |
 | [T09](T09-player-manager-poc.md) | PlayerManager proof of concept | M1 | T02, T05, T06, T07, T08 | review | Claude Code |
-| [T10](T10-vo-benchmark.md) | Video output benchmark (spike) | M1 | T09 | todo | |
+| [T10](T10-vo-benchmark.md) | Video output benchmark (spike) | M1 | T09 | review | Claude Code |
 | [T11](T11-media-probe.md) | Media probe (ffprobe) | M2 | T03 | todo | |
 | [T12](T12-still-cache.md) | Still frame cache (ffmpeg) | M2 | T04, T11 | todo | |
 | [T13](T13-wallpaper-sync.md) | System wallpaper sync | M2 | T02, T03, T12 | todo | |

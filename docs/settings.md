@@ -16,7 +16,7 @@ Authoritative definition: [tasks/T02-gsettings-schema.md](tasks/T02-gsettings-sc
 | `pause-on-overview` | `b` | `true` | Pause while the Overview is visible |
 | `pause-on-battery` | `b` | `true` | Pause while on battery power |
 | `optimize-videos` | `b` | `false` | Prepare target-sized SDR H.264 in prefs (GIFs always prepared); no login transcode |
-| `video-output` | enum `auto` / `gpu-next` / `dmabuf-wayland` | `auto` | mpv VO; default picked from Milestone 1 measurements |
+| `video-output` | enum `auto` / `gpu-next` / `dmabuf-wayland` | `auto` | mpv VO; `auto` maps to `dmabuf-wayland,wlshm` with `--hwdec=vaapi` on the development device per [T10](benchmarks/vo-benchmark.md), provisional until real-session verification |
 | `max-retries` | `u` | `3` | Player restart limit before staying on the still |
 | `debug-logging` | `b` | `false` | Enable debug-level logs |
 | `wallpaper-applied` | `b` | `false` | Whether the original wallpaper is saved and currently replaced |
