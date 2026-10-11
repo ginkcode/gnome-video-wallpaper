@@ -55,7 +55,8 @@ def setup(base):
         f"[org/gnome/shell]\nenabled-extensions=['{UUID}']\ndisable-user-extensions=false\n"
         "[org/gnome/desktop/background]\npicture-uri='file:///orig/light.png'\n"
         "picture-uri-dark='file:///orig/dark.png'\npicture-options='spanned'\n"
-        "[org/gnome/shell/extensions/gink-video-wallpaper]\nstartup-delay-ms=uint32 0\n")
+        "[org/gnome/shell/extensions/gink-video-wallpaper]\nstartup-delay-ms=uint32 0\n" +
+        t09.monitor_configs(media / 'timing.gif'))
     return target / 'schemas', media
 
 
@@ -68,7 +69,7 @@ def main():
                'XDG_RUNTIME_DIR': str(runtime), 'XDG_DATA_HOME': str(base / 'data'),
                'XDG_CONFIG_HOME': str(base / 'config'), 'XDG_CACHE_HOME': str(base / 'cache'),
                'XDG_CURRENT_DESKTOP': 'GNOME', 'XDG_SESSION_TYPE': 'wayland', 'TMPDIR': str(base / 'tmp'),
-               'GSETTINGS_BACKEND': 'keyfile', 'GINK_VW_TEST_FILE': str(media / 'timing.gif')}
+               'GSETTINGS_BACKEND': 'keyfile'}
         proc = subprocess.Popen(['dbus-run-session', '--', 'bash', '-c', SCRIPT, 'run', str(base), str(SMOKE),
                                  str(schemas), str(media), UUID],
                                 env=env, cwd=ROOT, start_new_session=True, stdout=subprocess.PIPE,
@@ -108,6 +109,7 @@ def main():
             'shellPlaysOptimized': players(relogin)[0].get('source') == 'optimized' and players(relogin)[0].get('loop'),
             'optimizeToggle': (on.get('config') or {}).get('optimize') is True and on.get('optimized') is True and
             on.get('generation') == 1 and on.get('preview') == 'picture' and on.get('toasts') == [],
+            'optimizedPublicationAppliesLive': on.get('liveOptimized') is True,
             'cancelLeavesNothing': cancelled.get('started') is True and cancelled.get('configs') == {} and
             cancelled.get('jobs') == [] and cancelled.get('mediaCount') == cancelled.get('before') and
             cancelled.get('progressHidden') is True,

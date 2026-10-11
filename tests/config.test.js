@@ -1,4 +1,4 @@
-import {readMonitorConfigs, writeMonitorConfig, removeMonitorConfig} from '../lib/config.js';
+import {readMonitorConfigs, removeMonitorConfig, selectConfigured, writeMonitorConfig} from '../lib/config.js';
 
 let failures = 0;
 
@@ -56,6 +56,14 @@ s = new FakeSettings('{"bad":{"file":"rel/path"},"ok":{"file":"/abs.mp4","fitMod
 assertEqual(readMonitorConfigs(s), {
     ok: {file: '/abs.mp4', fitMode: null, optimize: null},
 }, 'invalid entries dropped');
+
+const mirrored = [{connector: 'HDMI-1', id: 'HDMI-1:x:y:1'}, {connector: 'DP-1', id: 'DP-1:x:y:2'}];
+assertEqual(selectConfigured(['HDMI-1', 'DP-1'], mirrored, {'HDMI-1:x:y:1': makeConfig()})?.physical.connector,
+    'HDMI-1', 'mirrored: only configured connector');
+assertEqual(selectConfigured(['HDMI-1', 'DP-1'], mirrored, {
+    'HDMI-1:x:y:1': makeConfig(), 'DP-1:x:y:2': makeConfig({file: '/tmp/dp.mp4'}),
+})?.config.file, '/tmp/dp.mp4', 'mirrored: first configured connector in sorted order');
+assertEqual(selectConfigured(['HDMI-1'], mirrored, {'DP-1:x:y:2': makeConfig()}), null, 'other monitor ignored');
 
 if (failures > 0) {
     console.error(`${failures} assertion(s) failed`);

@@ -2,8 +2,8 @@
 
 - **Milestone:** M5
 - **Depends on:** T02, T09, T12, T13
-- **Status:** todo
-- **Owner:**
+- **Status:** review
+- **Owner:** Claude Code
 - **Skills:** GNOME Shell extension, state reconciliation
 
 ## Goal
@@ -25,7 +25,18 @@ Changes in preferences take effect without disabling/enabling the extension.
 
 ## Acceptance criteria
 
-- [ ] Changing the video in prefs hands off via a prepared displayed matching static without black frames, overlap, or leftover sockets. There is no video-to-video crossfade.
-- [ ] Rapid settings slider/selection changes queue cleanly and resolve to the final selection with exactly one player per logical monitor.
-- [ ] Removing all configs restores the original wallpaper and stops all players.
-- [ ] Mirrored display configuration updates the shared logical player from the first configured connector.
+- [x] Changing the video in prefs hands off via a prepared displayed matching static without black frames, overlap, or leftover sockets. There is no video-to-video crossfade.
+- [x] Rapid settings slider/selection changes queue cleanly and resolve to the final selection with exactly one player per logical monitor.
+- [x] Removing all configs restores the original wallpaper and stops all players.
+- [x] Mirrored display configuration updates the shared logical player from the first configured connector.
+
+## Verification — 2026-10-11
+
+- `make test` and `make lint` pass. Lifecycle tests cover prepared-still handoff order, coalesced rapid requests, captured video output, config removal, re-addition and cancellation during graceful removal/background settling. Mirrored selection is unit-tested with reversed connector order and physical-ID configs.
+- `python3 -I tests/integration/run-t24-nested.py`: all eight checks pass in a private headless GNOME Shell 50.1. Video changes, rapid bursts, VO and fit changes never exceeded one player or socket; removal left no players, sockets or refs and restored the original URI/options. Re-adding a config reapplied the published wallpaper.
+- `python3 -I tests/integration/run-t23-nested.py`: all checks pass, including a newly published optimized entry switching the live shell player without re-enabling. No transcode runs in the shell.
+- `python3 -I tests/integration/run-t09-nested.py --cycles 10 --modes normal`: verified playback, pause reasons, all ten lifecycle cycles, no overlap/errors, no surviving players and no sockets.
+- The headless test stage explicitly hides the startup Overview and drives screenshots so the compositor paints. Before that fixture fix, startup correctly waited for a paintable stage and queued reconciles behind it.
+- Nested runners now seed real `monitor-configs`; the temporary environment fallback is removed. T10's private VO/hwdec injection anchor is updated too; saved benchmark fixtures are untouched.
+
+Visual limits: prepared-static ordering and absence of process/socket overlap are verified mechanically. No real-session black-frame/perceptual judgment or physical mirrored-display test was performed; those remain manual review checks.

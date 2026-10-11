@@ -74,6 +74,7 @@ async function main() {
     await waitFor(() => playerSources()[0]?.source, 40000);
     report('login', {players: playerSources(), media: media()});
 
+    settings.set_string('monitor-configs', '{}');
     const toasts = [];
     const window = new Adw.PreferencesWindow();
     const page = new MonitorsPage({settings, toast: message => toasts.push(message)});
@@ -107,11 +108,14 @@ async function main() {
     await page.select(id, logical, `${mediaDir}/plain.mp4`);
     await waitFor(() => page._jobs.pending === 0);
     const plainMedia = media();
+    const beforeGeneration = page.optimizedGeneration(id);
     const current = page._sections.get(id);
     current._optimizeRow.selected = 1;
     const optimized = await waitFor(() => media().length > plainMedia.length && page._jobs.pending === 0);
     await waitFor(() => current._previewStack.visible_child_name === 'picture');
-    report('optimizeOn', {config: configs()[id], optimized, media: media(), generation: page.optimizedGeneration(id),
+    const liveOptimized = await waitFor(() => playerSources()[0]?.source === 'optimized', 40000);
+    report('optimizeOn', {config: configs()[id], optimized, media: media(),
+        generation: page.optimizedGeneration(id) - beforeGeneration, liveOptimized,
         preview: current._previewStack.visible_child_name, toasts: [...toasts]});
 
     const count = media().length;

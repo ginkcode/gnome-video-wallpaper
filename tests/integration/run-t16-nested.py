@@ -41,13 +41,14 @@ def session(base, asset):
     settings.mkdir(parents=True)
     (settings / 'keyfile').write_text(
         f"[org/gnome/shell]\nenabled-extensions=['{PROBE}']\ndisable-user-extensions=false\n"
-        "[org/gnome/shell/extensions/gink-video-wallpaper]\nstartup-delay-ms=uint32 0\n")
+        "[org/gnome/shell/extensions/gink-video-wallpaper]\nstartup-delay-ms=uint32 0\n" +
+        t09.monitor_configs(asset))
     runtime = base / 'runtime'
     env = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': str(base / 'home'),
            'XDG_RUNTIME_DIR': str(runtime), 'XDG_DATA_HOME': str(base / 'data'),
            'XDG_CONFIG_HOME': str(base / 'config'), 'XDG_CACHE_HOME': str(base / 'cache'),
            'XDG_CURRENT_DESKTOP': 'GNOME', 'XDG_SESSION_TYPE': 'wayland', 'TMPDIR': str(base / 'tmp'),
-           'GSETTINGS_BACKEND': 'keyfile', 'GINK_VW_TEST_FILE': str(asset)}
+           'GSETTINGS_BACKEND': 'keyfile'}
     monitor = t09.Monitor(runtime)
     monitor.start()
     proc = subprocess.Popen(['dbus-run-session', '--', 'gnome-shell', '--headless',

@@ -38,7 +38,7 @@ Read first:
 | [T21](T21-prefs-monitors.md) | Preferences: per-monitor page | M5 | T02, T05, T11, T12 | review | Claude Code |
 | [T22](T22-prefs-general-diagnostics.md) | Preferences: general, diagnostics, cache | M5 | T02, T11, T12 | review | Claude Code |
 | [T23](T23-transcoder.md) | GIF and optimized-video transcoder | M5 | T04, T11, T12 | review | Claude Code |
-| [T24](T24-live-settings.md) | Apply settings live | M5 | T02, T09, T12, T13 | todo | |
+| [T24](T24-live-settings.md) | Apply settings live | M5 | T02, T09, T12, T13 | review | Claude Code |
 | [T25](T25-multi-monitor.md) | Multi-monitor reconcile and hotplug | M6 | T05, T24 | todo | |
 | [T26](T26-spanned-wallpaper.md) | Spanned multi-monitor still | M6 | T12, T13, T25 | todo | |
 | [T27](T27-compatibility.md) | Compatibility with other extensions | M7 | T14, T19, T25 | todo | |

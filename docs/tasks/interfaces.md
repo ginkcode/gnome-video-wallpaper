@@ -88,6 +88,7 @@ Mirrored connectors map to the same logical monitor index.
 export function readMonitorConfigs(settings)          // -> {[physicalMonitorId]: {file, fitMode, optimize}}
 export function writeMonitorConfig(settings, id, cfg)
 export function removeMonitorConfig(settings, id)
+export function selectConfigured(connectors, physicalMonitors, configs) // -> {physical, config}|null; sorted connectors
 ```
 
 ## `lib/mpvIpc.js` (T06) [shell-safe, Gio only]
@@ -204,6 +205,7 @@ If optimized media is absent or disappears during acquisition, choose the origin
 ```js
 export async function ensureOptimized(media, {width, height, scale, fitMode, transformVersion}, {onProgress, cancellable})
 // -> completed MP4 path (SDR H.264, VA-API decodable); geometry already baked
+export function optimizedDir()                             // <cacheRoot>/media
 export function optimizedPath(media, geometry)              // <cacheRoot>/media/<cacheKey kind 'media'>.mp4
 export function shouldOptimize(media, config, optimizeVideos) // GIF always, else config.optimize ?? optimizeVideos
 export function canOptimize(geometry)                       // even raster width/height (H.264 4:2:0)
@@ -234,6 +236,7 @@ export class PlayerManager {
     async start()
     stop({restore = false} = {})            // synchronous invalidate/cleanup/terminateNow; no awaited shell work
     async reconcile()
+    get started()                            // false while stopped/sleeping
     setPaused(logicalMonitorKey, reason, paused) // reasons combine with OR
     get targets()                            // last resolved targets; [] after stop()
     onTargets(callback)                      // -> unsubscribe; callback(targets) after each resolution
@@ -249,6 +252,20 @@ T14: starts and reconciles are serialized, and a reconcile with an unchanged sel
 T16 supervision: a crash or transient failure triggers a retry after `2s, 8s, 30s`. Failures within 10 minutes count toward `max-retries`; reaching it blocks the monitor. Errors classified as permanent (`ProbeError`, or `CacheError` other than `SOURCE_CHANGED`/`STILL_MISSING`) block at once. A blocked monitor keeps its still and gets one notification, and stays blocked until its selection changes or the extension is re-enabled. 60 s of healthy playback clears the failure count. Optional constructor overrides: `backoffMs`, `failureWindowMs`, `healthyMs`. Optional env hooks: `classify(error)`, `maxRetries()`, `notify(key, message)`. `PlayerManager` accepts `openPreferences` for the notification action.
 
 T17: `stop({restore: true})` also restores the saved system wallpaper; `disable()` passes it unless the session is locked. The env hook `onStop({restore})` performs it.
+
+T24: `selectionKey` includes source/optimized size and mtime, target geometry, physical ID, optimization choice and captured VO. A running player retains its exact acquired asset through reap. Queued reconciles coalesce to the latest request; an in-flight handoff completes before the next begins. Removal displays the prepared still, reaps/releases the player, restores only when the stored config map is empty, then removes the layer. `restoreWallpaper()` may return a settling delay in milliseconds; the shell uses 1500 ms to cover the system-background transition.
+
+## `lib/liveSettings.js` (T24) [shell-safe, Gio/GLib]
+
+```js
+export const LIVE_KEYS // monitor-configs, default-fit-mode, video-output, optimize-videos
+export class LiveSettings {
+    constructor({settings, onChange, debounceMs = 300, directories = [], logger})
+    enable()
+    disable()
+}
+```
+Settings bursts and newly published optimized media request one debounced reconcile. Watched directories are created asynchronously; disable cancels that work, disconnects settings and cancels monitors/timers. Completed-media deletion is ignored so clearing cache does not interrupt private active playback references. The shell never transcodes, including on live settings changes; it switches from an original fallback after prefs atomically publishes the optimized entry.
 
 ## `lib/sessionLifecycle.js` (T17) [pure]
 

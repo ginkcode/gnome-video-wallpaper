@@ -20,6 +20,12 @@ t07 = module_from_spec(spec)
 spec.loader.exec_module(t07)
 UUID = 'gink-video-wallpaper@ginkcode.github.io'
 PROBE = 't09-probe@ginkcode.github.io'
+VIRTUAL_ID = 'Meta-0:MetaVendor:MetaVirtualMonitor:0x00'
+
+
+def monitor_configs(path):
+    configs = {VIRTUAL_ID: {'file': str(path), 'fitMode': None, 'optimize': None}}
+    return f"monitor-configs='{json.dumps(configs)}'\n"
 
 
 def command(base, *args):
@@ -103,14 +109,13 @@ def run_session(base, mode, asset, still, cycles, video_output):
     settings.mkdir(parents=True)
     (settings / 'keyfile').write_text(
         f"[org/gnome/shell]\nenabled-extensions=['{PROBE}']\ndisable-user-extensions=false\n"
-        f"[org/gnome/shell/extensions/gink-video-wallpaper]\nvideo-output='{video_output}'\n")
+        f"[org/gnome/shell/extensions/gink-video-wallpaper]\nvideo-output='{video_output}'\n" + monitor_configs(asset))
     runtime = root / 'runtime'
     env = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': str(root / 'home'),
            'XDG_RUNTIME_DIR': str(runtime), 'XDG_DATA_HOME': str(root / 'data'),
            'XDG_CONFIG_HOME': str(root / 'config'), 'XDG_CACHE_HOME': str(root / 'cache'),
            'XDG_CURRENT_DESKTOP': 'GNOME', 'XDG_SESSION_TYPE': 'wayland', 'TMPDIR': str(root / 'tmp'),
-           'GSETTINGS_BACKEND': 'keyfile', 'GINK_VW_TEST_FILE': str(asset),
-           'GINK_VW_TEST_STILL': str(still), 'T09_OUTPUT': str(root), 'T09_EXIT': mode, 'T09_CYCLES': str(cycles)}
+           'GSETTINGS_BACKEND': 'keyfile', 'T09_OUTPUT': str(root), 'T09_EXIT': mode, 'T09_CYCLES': str(cycles)}
     monitor = Monitor(runtime)
     monitor.start()
     lines = []

@@ -26,6 +26,7 @@ class Fixture {
         this.released = [];
         this.acquired = [];
         this.selection = 'video';
+        this.vo = 'auto';
         this.keys = [KEY];
         this.staggerMs = 0;
         this.notifications = [];
@@ -63,9 +64,11 @@ class Fixture {
             maxRetries: () => 3,
             notify: (key, message) => this.notifications.push(`${key}: ${message}`),
             onStop: ({restore}) => this.stops.push(restore),
+            restoreWallpaper: () => this.log.push('restore'),
             resolveTargets: ({cancellable}) => this.gate('resolve', cancellable, this.keys.map(key => ({
                 logicalMonitorKey: key, selectedPhysicalMonitorId: `${key}:a:b:`, monitorIndex: 0,
-                selectionKey: this.selection, file: `/${this.selection}.mp4`, optimize: false,
+                selectionKey: `${this.selection}:${this.vo}`, file: `/${this.selection}.mp4`, optimize: false,
+                vo: this.vo,
                 geometry: {fitMode: 'fill'}, systemWallpaper: this.keys.length === 1,
             }))),
             probe: (path, cancellable) => this.gate('probe', cancellable, {path}),
@@ -114,15 +117,16 @@ class Fixture {
             },
             prepareSocket: ({cancellable}) => this.gate('socket', cancellable, '/run/mpv-1'),
             releaseSocket: path => this.released.push(path),
-            createProcess: () => {
+            createProcess: ({vo}) => {
                 const fixture = this;
                 let reap;
                 const process = {
-                    started: false, terminated: false, exit: null,
+                    started: false, terminated: false, exit: null, vo, stopping: false, done: false,
                     reaped: new Promise(resolve => {
                         reap = resolve;
                     }),
                     reap: () => {
+                        process.done = true;
                         fixture.log.push(`reap:${fixture.processes.indexOf(process)}`);
                         reap();
                     },
@@ -138,6 +142,7 @@ class Fixture {
                     },
                     ownsWindow: window => window === `window:${fixture.processes.indexOf(process)}`,
                     stop: ({graceMs}) => {
+                        process.stopping = true;
                         fixture.log.push(`stop:${graceMs}`);
                         return process.reaped;
                     },
@@ -169,6 +174,21 @@ async function drainReaps(fixture) {
         process.reap();
     for (let i = 0; i < 50 && outstandingReapCount(); i++)
         await sleep(1);
+}
+
+async function settle(fixture, promise) {
+    let done = false;
+    promise.finally(() => {
+        done = true;
+    }).catch(() => {});
+    while (!done) {
+        for (const process of fixture.processes) {
+            if (process.stopping && !process.done)
+                process.reap();
+        }
+        await sleep(1);
+    }
+    return promise;
 }
 
 test('fit modes map to mpv properties and baked geometry is identity', () => {
@@ -363,6 +383,107 @@ test('replacement shows the new still, removes the old clone, reaps, then starts
     assertEqual(manager.getPlayer(KEY).asset.path, '/refs/next.mp4');
     assertEqual(manager.getState(KEY), PlayerState.PAUSED, 'battery reason survives replacement');
     assertDeepEqual(fixture.acquired.map(asset => asset.path), ['/refs/next.mp4']);
+    manager.stop();
+    await drainReaps(fixture);
+});
+
+test('removing the config shows the still, reaps, restores, then removes the layer', async () => {
+    const fixture = new Fixture();
+    const manager = fixture.manager();
+    await manager.start();
+    fixture.keys = [];
+    const before = fixture.log.length;
+    const removing = manager.reconcile();
+    for (let i = 0; i < 50 && !fixture.log.includes('stop:1000'); i++)
+        await sleep(1);
+    assertEqual(fixture.layers[0].destroyed, false, 'still kept while the player stops');
+    assertEqual(fixture.log.includes('restore'), false, 'no restore before reap');
+    fixture.processes[0].reap();
+    await removing;
+    assertDeepEqual(fixture.log.slice(before), ['resolve', 'show:/wallpapers/stills/refs/video.mp4.png', 'stop:1000',
+        'reap:0', 'release:/refs/video.mp4', 'restore']);
+    assertEqual(fixture.layers[0].destroyed, true);
+    assertEqual(manager.getState(KEY), PlayerState.STOPPED);
+    assertDeepEqual(fixture.acquired, []);
+    fixture.keys = [KEY];
+    await settle(fixture, manager.reconcile());
+    assertEqual(manager.getState(KEY), PlayerState.PLAYING, 'config added again');
+    manager.stop();
+    await drainReaps(fixture);
+});
+
+test('stop during removal destroys the kept layer without restoring', async () => {
+    const fixture = new Fixture();
+    const manager = fixture.manager();
+    await manager.start();
+    fixture.keys = [];
+    const removing = manager.reconcile();
+    for (let i = 0; i < 50 && !fixture.log.includes('stop:1000'); i++)
+        await sleep(1);
+    manager.stop();
+    assertEqual(fixture.layers[0].destroyed, true);
+    assertEqual(fixture.processes[0].terminated, true);
+    await drainReaps(fixture);
+    await removing;
+    assertEqual(fixture.log.includes('restore'), false);
+});
+
+test('stop during wallpaper settling cancels promptly and removes the retained layer', async () => {
+    const fixture = new Fixture();
+    const env = fixture.env();
+    env.restoreWallpaper = () => {
+        fixture.log.push('restore');
+        return 10000;
+    };
+    const manager = new PlayerManagerLifecycle({env, logger: quiet, fadeMs: 0});
+    await manager.start();
+    fixture.keys = [];
+    const removing = manager.reconcile();
+    for (let i = 0; i < 100 && !fixture.log.includes('restore'); i++) {
+        if (fixture.processes[0].stopping && !fixture.processes[0].done)
+            fixture.processes[0].reap();
+        await sleep(1);
+    }
+    assertEqual(fixture.log.includes('restore'), true);
+    assertEqual(fixture.layers[0].destroyed, false, 'still retained during background transition');
+    manager.stop();
+    await removing;
+    assertEqual(fixture.layers[0].destroyed, true);
+    await drainReaps(fixture);
+});
+
+test('rapid reconciles coalesce to the final selection with one live player', async () => {
+    const fixture = new Fixture();
+    const manager = fixture.manager();
+    await manager.start();
+    fixture.held.add('acquire');
+    fixture.selection = 'a';
+    const first = manager.reconcile();
+    await fixture.reached('acquire');
+    const queued = [];
+    for (const selection of ['b', 'c', 'd']) {
+        fixture.selection = selection;
+        queued.push(manager.reconcile());
+    }
+    fixture.release('acquire');
+    await settle(fixture, Promise.all([first, ...queued]));
+    assertEqual(fixture.processes.length, 3, 'initial, in-flight and final only');
+    assertEqual(manager.getPlayer(KEY).asset.path, '/refs/d.mp4');
+    assertDeepEqual(fixture.acquired.map(asset => asset.path), ['/refs/d.mp4']);
+    assertEqual(fixture.processes.filter(process => !process.stopping).length, 1, 'one live player');
+    assertEqual(fixture.layers.filter(layer => !layer.destroyed).length, 1, 'one layer');
+    manager.stop();
+    await drainReaps(fixture);
+});
+
+test('a video output change replaces the player with the new output', async () => {
+    const fixture = new Fixture();
+    const manager = fixture.manager();
+    await manager.start();
+    fixture.vo = 'gpu-next';
+    await settle(fixture, manager.reconcile());
+    assertDeepEqual(fixture.processes.map(process => process.vo), ['auto', 'gpu-next']);
+    assertEqual(manager.getState(KEY), PlayerState.PLAYING);
     manager.stop();
     await drainReaps(fixture);
 });

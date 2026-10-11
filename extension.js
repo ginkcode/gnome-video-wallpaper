@@ -4,10 +4,12 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {getLoginManager} from 'resource:///org/gnome/shell/misc/loginManager.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
+import {LiveSettings} from './lib/liveSettings.js';
 import {createLogger, setDebugEnabled} from './lib/log.js';
 import {PauseController} from './lib/pauseController.js';
 import {PlayerManager} from './lib/playerManager.js';
 import {isLockedSession, watchSleep} from './lib/sessionLifecycle.js';
+import {optimizedDir} from './lib/transcoder.js';
 
 export default class GinkVideoWallpaper extends Extension {
     enable() {
@@ -30,6 +32,11 @@ export default class GinkVideoWallpaper extends Extension {
         });
         this._pause = new PauseController({playerManager: this._manager, settings: this._settings});
         this._pause.enable();
+        this._live = new LiveSettings({settings: this._settings, directories: [optimizedDir()], onChange: () => {
+            if (this._manager?.started)
+                this._manager.reconcile().catch(error => log.error(`reconcile failed: ${error.message}`));
+        }});
+        this._live.enable();
         start();
         const end = GLib.get_monotonic_time();
         log.debug(`enable at ${Math.round(begin / 1000)} ms took ${((end - begin) / 1000).toFixed(2)} ms`);
@@ -38,6 +45,8 @@ export default class GinkVideoWallpaper extends Extension {
     disable() {
         this._unwatchSleep?.();
         this._unwatchSleep = null;
+        this._live?.disable();
+        this._live = null;
         this._pause?.disable();
         this._pause = null;
         this._manager?.stop({restore: !isLockedSession(Main.sessionMode)});

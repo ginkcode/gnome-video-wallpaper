@@ -20,7 +20,7 @@ PROBE = 't10-probe@ginkcode.github.io'
 VOS = ('gpu-next', 'gpu', 'dmabuf-wayland', 'wlshm')
 HWDECS = ('vaapi', 'vaapi-copy', 'no')
 PHASES = ('visible', 'covered-unpaused', 'covered-paused')
-ANCHOR = "argv: buildMpvArgv({mpvPath: 'mpv', socketPath, vo: vo()})"
+ANCHOR = "argv: buildMpvArgv({mpvPath: 'mpv', socketPath, vo: vo ?? videoOutput(settings)})"
 sys.dont_write_bytecode = True
 
 
@@ -166,7 +166,7 @@ def command(base, *args, timeout=30):
                               timeout=timeout, check=True).stdout
 
 
-def stage(root, vo, hwdec):
+def stage(root, vo, hwdec, media):
     if vo not in VOS or hwdec not in HWDECS:
         raise ValueError('Unsupported experiment arguments')
     for name in ('home', 'data', 'config', 'cache', 'runtime', 'tmp'):
@@ -195,7 +195,10 @@ def stage(root, vo, hwdec):
     shutil.copy(ROOT / 'tests/integration/t10-probe.js', probe / 'extension.js')
     settings = root / 'config/glib-2.0/settings'
     settings.mkdir(parents=True)
-    (settings / 'keyfile').write_text(f"[org/gnome/shell]\nenabled-extensions=['{PROBE}']\ndisable-user-extensions=false\n")
+    configs = {'Meta-0:MetaVendor:MetaVirtualMonitor:0x00': {'file': media, 'fitMode': None, 'optimize': None}}
+    (settings / 'keyfile').write_text(f"[org/gnome/shell]\nenabled-extensions=['{PROBE}']\ndisable-user-extensions=false\n"
+                                      f"[org/gnome/shell/extensions/gink-video-wallpaper]\n"
+                                      f"monitor-configs='{json.dumps(configs)}'\n")
 
 
 def classify(events, error=None):
@@ -266,14 +269,13 @@ def run_row(base, asset, vo, hwdec, seconds):
     key = f"{asset['name']}-{vo}-{hwdec}"
     # Use short row directory names to guarantee runtime socket paths stay well under the 108-byte limit
     root = base / 'r' / str(time.time_ns() % 100000000)
-    stage(root, vo, hwdec)
+    stage(root, vo, hwdec, asset['path'])
     runtime = root / 'runtime'
     env = {'PATH': '/usr/bin:/bin', 'LANG': 'C.UTF-8', 'HOME': str(root / 'home'),
            'XDG_RUNTIME_DIR': str(runtime), 'XDG_DATA_HOME': str(root / 'data'),
            'XDG_CONFIG_HOME': str(root / 'config'), 'XDG_CACHE_HOME': str(root / 'cache'),
            'XDG_CURRENT_DESKTOP': 'GNOME', 'XDG_SESSION_TYPE': 'wayland',
            'TMPDIR': str(root / 'tmp'), 'GSETTINGS_BACKEND': 'keyfile',
-           'GINK_VW_TEST_FILE': asset['path'], 'GINK_VW_TEST_STILL': asset['still'],
            'T10_OUTPUT': str(root), 'T10_SECONDS': str(seconds)}
     events, metrics, owned, pidstats = [], [], set(), {}
     stop = threading.Event()
