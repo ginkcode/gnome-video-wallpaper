@@ -11,6 +11,7 @@ Planned GNOME Shell extension that plays SDR videos (MP4, MKV, MOV, WebM, …) a
 | [milestones.md](milestones.md) | Implementation plan with acceptance criteria |
 | [testing.md](testing.md) | Test strategy, metrics, manual checklist |
 | [compatibility.md](compatibility.md) | Results with other extensions, known issues, workarounds |
+| [release-checklist.md](release-checklist.md) | EGO review self-check, packaging and manual release checks |
 | [tasks/](tasks/README.md) | Task board: pick-up-able tasks, conventions, module interfaces |
 
 ## Status

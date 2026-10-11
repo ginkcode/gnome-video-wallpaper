@@ -42,7 +42,7 @@ Read first:
 | [T25](T25-multi-monitor.md) | Multi-monitor reconcile and hotplug | M6 | T05, T24 | review | Claude Code |
 | [T26](T26-spanned-wallpaper.md) | Spanned multi-monitor still | M6 | T12, T13, T25 | review | Claude Code |
 | [T27](T27-compatibility.md) | Compatibility with other extensions | M7 | T14, T19, T25 | review | Claude Code |
-| [T28](T28-release.md) | README, packaging, EGO review | M7 | all | todo | |
+| [T28](T28-release.md) | README, packaging, EGO review | M7 | all | review | Claude Code |
 | [T29](T29-panel-indicator.md) | Top bar indicator (Play/Pause, Preferences) | M7 | T20, T22 | review | Claude Code |
 | [T30](T30-playlists.md) | Video playlists with timed rotation | M7 | T21, T22, T24, T29 | review | Claude Code |
 | [T31](T31-workspace-switch.md) | Workspace switching with open windows | M7 | T08, T27 | review | Claude Code |

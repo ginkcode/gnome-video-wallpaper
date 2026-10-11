@@ -1,6 +1,6 @@
 {
   "name": "gink-video-wallpaper",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "GNOME Shell extension that plays videos as the desktop wallpaper",
   "type": "module",
   "scripts": {

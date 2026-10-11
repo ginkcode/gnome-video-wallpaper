@@ -28,7 +28,7 @@ uninstall:
 
 zip: schemas
 	mkdir -p dist
-	gnome-extensions pack -f --extra-source=lib --extra-source=prefs -o dist
+	gnome-extensions pack -f --extra-source=lib --extra-source=prefs --extra-source=LICENSE -o dist
 
 lint:
 	npm run lint
