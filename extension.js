@@ -6,6 +6,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {LiveSettings} from './lib/liveSettings.js';
 import {createLogger, setDebugEnabled} from './lib/log.js';
+import {MonitorWatcher} from './lib/monitorTopology.js';
 import {PauseController} from './lib/pauseController.js';
 import {PlayerManager} from './lib/playerManager.js';
 import {isLockedSession, watchSleep} from './lib/sessionLifecycle.js';
@@ -32,17 +33,25 @@ export default class GinkVideoWallpaper extends Extension {
         });
         this._pause = new PauseController({playerManager: this._manager, settings: this._settings});
         this._pause.enable();
-        this._live = new LiveSettings({settings: this._settings, directories: [optimizedDir()], onChange: () => {
+        const reconcile = () => {
             if (this._manager?.started)
                 this._manager.reconcile().catch(error => log.error(`reconcile failed: ${error.message}`));
-        }});
+        };
+        this._live = new LiveSettings({settings: this._settings, directories: [optimizedDir()], onChange: reconcile});
         this._live.enable();
+        this._monitors = new MonitorWatcher({
+            sources: [Main.layoutManager, global.backend.get_monitor_manager()],
+            onChange: reconcile,
+        });
+        this._monitors.enable();
         start();
         const end = GLib.get_monotonic_time();
         log.debug(`enable at ${Math.round(begin / 1000)} ms took ${((end - begin) / 1000).toFixed(2)} ms`);
     }
 
     disable() {
+        this._monitors?.disable();
+        this._monitors = null;
         this._unwatchSleep?.();
         this._unwatchSleep = null;
         this._live?.disable();

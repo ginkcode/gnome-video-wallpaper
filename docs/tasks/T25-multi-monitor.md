@@ -2,8 +2,8 @@
 
 - **Milestone:** M6
 - **Depends on:** T05, T24
-- **Status:** todo
-- **Owner:**
+- **Status:** review
+- **Owner:** Claude Code
 - **Skills:** Mutter monitors; needs an external display for testing
 
 ## Goal
@@ -22,11 +22,20 @@ Correct per-monitor videos with any monitor arrangement, scale, and hotplug sequ
 
 ## Acceptance criteria
 
-- [ ] Plug external monitor with its own config → its video starts; laptop video unaffected.
-- [ ] Unplug → its player stops, no orphan process.
-- [ ] Change resolution/scale/arrangement in Settings → videos fill correct areas.
+- [x] Plug external monitor with its own config → its video starts; laptop video unaffected.
+- [x] Unplug → its player stops, no orphan process.
+- [x] Change resolution/scale/arrangement in Settings → videos fill correct areas.
 - [ ] Suspend with external monitor, resume without it → correct state.
 - [ ] Mixed 100%/150% scales render sharp and correctly positioned.
-- [ ] Mirrored connectors share one player; unmirroring cleanly reconciles to independent logical players.
-- [ ] Rotation and mixed 100%/150%/200% scale changes update target raster geometry and clone positioning without gaps or overlap.
-- [ ] Unplugging an external display during active playback reaps its player cleanly without touching the internal display player.
+- [x] Mirrored connectors share one player; unmirroring cleanly reconciles to independent logical players.
+- [x] Rotation and mixed 100%/150%/200% scale changes update target raster geometry and clone positioning without gaps or overlap.
+- [x] Unplugging an external display during active playback reaps its player cleanly without touching the internal display player.
+
+## Verification — 2026-10-11
+
+- `make test` and `make lint` pass. New unit tests cover topology planning (order, placement, unconfigured/unindexed, mirror precedence, identity), the debounced monitor watcher, background anchor/restacking, window geometry correction (panel clamp, misplacement, aspect snap, auto-maximize) and lifecycle cases: removing the external config keeps the internal player, mirror/unmirror, resume with the external monitor gone.
+- `python3 -I tests/integration/run-t25-nested.py`: all 23 checks pass in a private headless GNOME Shell 50.1 with two virtual monitors. Layouts are changed through DisplayConfig `ApplyMonitorsConfig`; screenshots sample each logical monitor and mpv reports its render size over IPC. Verified: one player per logical monitor, config removal/re-addition, mirroring by sorted connector with fallback, unmirroring, 200%/150% scales and rotation (window frame equals the logical rectangle, render size = logical × scale), stacked arrangement, background rebuild and container destruction, disabling/re-enabling the external monitor reaps/starts only its player, clean disable, no survivors or shell errors.
+- `python3 -I tests/integration/run-t24-nested.py` still passes.
+- Defect found by the smoke and fixed: mpv resized its own window (`auto-window-resize`, `keepaspect-window`) and Mutter clamped/auto-maximized the monitor-sized window below the top bar. mpv window sizing is now disabled and BackgroundLayer re-enforces the frame.
+
+Limits: virtual monitors have one mode, so resolution changes are covered by scale/rotation; unplug is simulated by disabling the monitor through DisplayConfig. Physical hotplug, suspend/resume and perceptual sharpness on real mixed-scale hardware are not tested; those two criteria stay open as manual checks.

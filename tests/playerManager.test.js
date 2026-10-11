@@ -545,6 +545,64 @@ test('players start sequentially with the stagger between them', async () => {
     await drainReaps(fixture);
 });
 
+test('removing one logical monitor reaps only that player without restoring wallpaper', async () => {
+    const fixture = new Fixture();
+    fixture.keys = ['A', 'B'];
+    const manager = fixture.manager();
+    await manager.start();
+    const internal = manager.getPlayer('A');
+    fixture.keys = ['A'];
+    await settle(fixture, manager.reconcile());
+    assertEqual(manager.getPlayer('A'), internal, 'internal player unchanged');
+    assertEqual(fixture.processes[0].stopping, false);
+    assertEqual(fixture.processes[1].done, true, 'external player reaped');
+    assertEqual(fixture.layers[0].destroyed, false);
+    assertEqual(fixture.layers[1].destroyed, true);
+    assertEqual(fixture.log.includes('restore'), false, 'remaining config prevents restore');
+    assertEqual(fixture.log.includes('apply:/wallpapers/stills/refs/video.mp4.png'), true,
+        'single-monitor still applied without restarting the remaining player');
+    assertEqual(fixture.acquired.length, 1, 'remaining asset retained');
+    manager.stop();
+    await drainReaps(fixture);
+});
+
+test('resume with an external monitor gone starts only the remaining logical player', async () => {
+    const fixture = new Fixture();
+    fixture.keys = ['A', 'B'];
+    const manager = fixture.manager();
+    await manager.start();
+    manager.stop();
+    fixture.keys = ['A'];
+    const resumed = manager.start();
+    await drainReaps(fixture);
+    await resumed;
+    assertDeepEqual(manager.targets.map(target => target.logicalMonitorKey), ['A']);
+    assertEqual(fixture.processes.length, 3, 'one new internal player');
+    assertEqual(fixture.layers.filter(layer => !layer.destroyed).length, 1);
+    manager.stop();
+    await drainReaps(fixture);
+});
+
+test('mirroring and unmirroring reap old logical groups before new players start', async () => {
+    const fixture = new Fixture();
+    fixture.keys = ['A', 'B'];
+    const manager = fixture.manager();
+    await manager.start();
+    fixture.keys = ['A|B'];
+    await settle(fixture, manager.reconcile());
+    assertEqual(fixture.processes.slice(0, 2).every(process => process.done), true);
+    assertDeepEqual(manager.targets.map(target => target.logicalMonitorKey), ['A|B']);
+    assertEqual(fixture.layers.filter(layer => !layer.destroyed).length, 1);
+    fixture.keys = ['A', 'B'];
+    await settle(fixture, manager.reconcile());
+    assertEqual(fixture.processes[2].done, true, 'mirrored player reaped');
+    assertDeepEqual(manager.targets.map(target => target.logicalMonitorKey), ['A', 'B']);
+    assertEqual(fixture.layers.filter(layer => !layer.destroyed).length, 2);
+    assertEqual(fixture.acquired.length, 2);
+    manager.stop();
+    await drainReaps(fixture);
+});
+
 test('disable during the stagger cancels promptly without a second spawn', async () => {
     const fixture = new Fixture();
     fixture.keys = ['A', 'B'];

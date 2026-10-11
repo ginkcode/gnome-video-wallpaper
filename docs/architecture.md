@@ -26,7 +26,9 @@ extension.js             enable/disable, wiring, startup gating
 lib/playerManager.js     per-logical-monitor mpv lifecycle, fade-in, bounded retries
 lib/mpvIpc.js            async JSON IPC: pause/resume, events, persistent state reconciliation
 lib/backgroundLayer.js   hide player window, clone into per-monitor background, still handoff
-lib/monitorWatcher.js    physical/logical monitor identity, hotplug, maximize/fullscreen coverage
+lib/monitorTopology.js   target planning and debounced layout/backend hotplug signals
+lib/monitorIdentity.js   physical/logical DisplayConfig identity
+lib/pauseController.js   maximize/fullscreen, Overview and battery pause policies
 lib/stillCache.js        playback-asset acquisition, still frames, published wallpapers
 lib/transcoder.js        SDR optimized/GIF transcodes with baked geometry identity
 lib/wallpaperSync.js     save, set, and restore org.gnome.desktop.background (persistent publications)
@@ -79,7 +81,8 @@ eslint.config.js, package.json, Makefile, LICENSE, README.md
 
 - Stored selections use physical monitor identity (connector + vendor/product/serial), not a desktop index. Display state separately exposes physical mode dimensions and transformed logical rectangles.
 - A mirrored logical-monitor group has one player. Its selection is the first configured connector in stable sorted order; preferences explains the shared selection, while each physical monitor keeps its stored selection for later unmirrored use.
-- `monitors-changed` events are debounced (~1 s) before reconciling players.
+- `monitors-changed` events from layout and the backend monitor manager are debounced (1 s) before reconciling players. Position, scale, transform and current layout index are part of target identity; unchanged logical players are retained.
+- Owned still/clone containers are restacked above the matching monitor's topmost background actor when Shell rebuilds backgrounds. Deferred rebinding preserves actor content and visibility, with synchronous cancellation on disable.
 - Spanned stills are composed once per logical rectangle onto one canvas. The canvas uses the logical-layout union, a common raster scale (maximum logical monitor scale), and shared edge rounding so adjacent rectangles do not gap or overlap. The wallpaper uses `picture-options='spanned'`.
 
 ### 6. Pause policy

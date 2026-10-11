@@ -62,7 +62,7 @@ export function buildMpvArgv({mpvPath, socketPath, vo, hwdec = 'vaapi',
 export function withParentDeathSignal(argv, parentPid)
 // -> string[]; setpriv --pdeathsig KILL, then exec argv only if still parented by parentPid
 ```
-Start with no media window; select load options from PlaybackAsset after IPC is subscribed. Use identity fitting for geometryBaked assets, configured fit otherwise. `--clipboard-backends=vo` is required: mpv's Wayland clipboard backend otherwise consumes the trusted `WAYLAND_SOCKET`, and the video window then arrives on an untrusted connection that `owns_window()` rejects. `PlayerProcess` applies `withParentDeathSignal` itself.
+Start with no media window; select load options from PlaybackAsset after IPC is subscribed. T25 disables `auto-window-resize`, `keepaspect-window` and `hidpi-window-scale`: the shell owns the logical window rectangle, while Wayland output scale determines the rendered raster. Video fitting remains controlled separately by IPC. Use identity fitting for geometryBaked assets, configured fit otherwise. `--clipboard-backends=vo` is required: mpv's Wayland clipboard backend otherwise consumes the trusted `WAYLAND_SOCKET`, and the video window then arrives on an untrusted connection that `owns_window()` rejects. `PlayerProcess` applies `withParentDeathSignal` itself.
 
 ## `lib/monitorIdentity.js` (T05) [pure]
 
@@ -144,7 +144,7 @@ export class BackgroundLayer {
     destroy()                                // synchronous; settle pending waits
 }
 ```
-Call watchWindow before spawn; the window-creation callback identifies ownership and hides the real window immediately, not in a later Promise continuation. Latch readiness even when callers attach late. Compositor first-frame readiness and mpv content readiness are separate conditions; neither wait may hang on cancellation. A GSettings write is not background-load acknowledgment: preload/display an owned still actor before dropping the old clone, retaining it until the system background is known loaded or continuing to use it underneath playback.
+Call watchWindow before spawn; the window-creation callback identifies ownership and hides the real window immediately, not in a later Promise continuation. Latch readiness even when callers attach late. Compositor first-frame readiness and mpv content readiness are separate conditions; neither wait may hang on cancellation. A GSettings write is not background-load acknowledgment: preload/display an owned still actor before dropping the old clone, retaining it until the system background is known loaded or continuing to use it underneath playback. T25: the owned container is restacked above the topmost background actor matching its monitor property when backgrounds rebuild. Static and clone ordering/visibility survive reparenting; removed/destroyed containers are rebound before redraw with generation checks, and disable cancels pending rebinding. The hidden source window frame is kept equal to the logical monitor rectangle: on `shown`, position/size and maximize changes and monitor changes it is unmaximized (Mutter auto-maximizes monitor-sized windows below the top bar) and moved with user-op `move_resize_frame`, never fullscreened.
 
 Mutter 50 has no `make_below()` or `unset_initiator()`. Verified hiding is `windowActor.opacity = 0`, `windowActor.reactive = false`, `Meta.Window.hide_from_window_list()`, `lower()`, and `stick()`, with `Main.wm.skipNextEffect()`. `set_type(DESKTOP)` and `minimize()` are not part of the verified path: desktop windows cannot be minimized, and minimization was a no-op on the tested normal window. A permanently transparent source still paints into `Clutter.Clone` after `first-frame`. `skip_taskbar` is what Alt+Tab, Overview, workspace thumbnails, and Ubuntu Dock filter on. Native exclusion stays for the window lifetime because releasing it on layer teardown can expose a live player. Preexisting owned windows are rejected: connecting `first-frame` after they have painted does not prove before-first-paint hiding.
 
@@ -253,7 +253,23 @@ T16 supervision: a crash or transient failure triggers a retry after `2s, 8s, 30
 
 T17: `stop({restore: true})` also restores the saved system wallpaper; `disable()` passes it unless the session is locked. The env hook `onStop({restore})` performs it.
 
+T25: targets cover every configured logical monitor, sorted by logical key. Placement (`x/y/width/height/scale/transform`) and the current layout index join the selection identity so topology changes replace affected players. Physical configs survive disconnection and mirrored groups resolve the first configured connector. Unchanged remaining players are retained; a transition to one logical monitor applies that player's existing published still without restarting it.
+
 T24: `selectionKey` includes source/optimized size and mtime, target geometry, physical ID, optimization choice and captured VO. A running player retains its exact acquired asset through reap. Queued reconciles coalesce to the latest request; an in-flight handoff completes before the next begins. Removal displays the prepared still, reaps/releases the player, restores only when the stored config map is empty, then removes the layer. `restoreWallpaper()` may return a settling delay in milliseconds; the shell uses 1500 ms to cover the system-background transition.
+
+## `lib/monitorTopology.js` (T25) [pure, GLib]
+
+```js
+export function planTargets(topology, configs, {defaultFitMode, optimizeVideos, vo, monitorIndexFor, logger})
+// -> targets with physical selection, placement, raster geometry and single-monitor wallpaper policy
+export function selectionKey(plan, asset) // selected bytes/geometry/VO plus placement and layout index
+export class MonitorWatcher {
+    constructor({sources, onChange, debounceMs = 1000, logger})
+    enable()
+    disable()
+}
+```
+The shell watches both `Main.layoutManager` and `global.backend.get_monitor_manager()` `monitors-changed` signals. A generation-guarded one-second debounce requests serialized reconciliation; disable disconnects signals and cancels the timer. Temporarily unindexed logical monitors are skipped until layout settles.
 
 ## `lib/liveSettings.js` (T24) [shell-safe, Gio/GLib]
 
