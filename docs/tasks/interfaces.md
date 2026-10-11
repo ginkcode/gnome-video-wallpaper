@@ -258,6 +258,8 @@ export class PauseController {
 
 T19: the shell wrapper delegates to `lib/coverageController.js` [pure, injected]: `coveredMonitors(windows, {workspace, isOwn, normalType, maximizeBoth})` and `CoverageController({playerManager, settings, display, workspaceManager, normalType, maximizeBoth, debounceMs = 200})` with `enable()`/`disable()`. It sets the `covered` reason per target key and recomputes, debounced, on display, workspace, window and `pause-on-maximized` changes.
 
+T20: `lib/sessionPauseController.js` [pure, injected] `SessionPauseController({playerManager, settings, overview, createBatteryProxy})` sets the `overview` reason (`pause-on-overview` and `overview.visible`) and the `battery` reason (`pause-on-battery` and UPower `OnBattery`) for every target key. `PlayerManager` env hook `waitForPaintable({cancellable})` delays the first-frame wait while the Overview hides the window group. `lib/async.js` gains `waitUntil(object, signal, isReady, cancellable)`.
+
 ## `lib/startupGate.js` (T15) [shell]
 
 ```js

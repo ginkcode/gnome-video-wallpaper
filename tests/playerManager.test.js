@@ -59,6 +59,7 @@ class Fixture {
         return {
             waitForStartup: ({cancellable}) => this.gate('gate', cancellable),
             staggerMs: () => this.staggerMs,
+            waitForPaintable: ({cancellable}) => this.gate('paintable', cancellable),
             maxRetries: () => 3,
             notify: (key, message) => this.notifications.push(`${key}: ${message}`),
             onStop: ({restore}) => this.stops.push(restore),
@@ -183,7 +184,7 @@ test('startup order: still, watch before spawn, subscribe, paused load, both rea
     await manager.start();
     assertDeepEqual(fixture.log, ['gate', 'resolve', 'probe', 'acquire', 'still', 'publish',
         'apply:/wallpapers/stills/refs/video.mp4.png', 'static', 'socket', 'watch:false', 'window', 'spawn',
-        'connect', 'cmd:keepaspect=true', 'cmd:panscan=1', 'load', 'content', 'attach:window', 'frame', 'fade']);
+        'connect', 'cmd:keepaspect=true', 'cmd:panscan=1', 'load', 'content', 'attach:window', 'paintable', 'frame', 'fade']);
     assertEqual(fixture.layers[0].shown, '/wallpapers/stills/refs/video.mp4.png', 'published still displayed');
     assertDeepEqual(fixture.pauses, [false]);
     assertEqual(manager.getState(KEY), PlayerState.PLAYING);
@@ -608,6 +609,31 @@ test('resolved targets are published and live player windows are recognised unti
     assertEqual(seen.length, 1, 'unsubscribed');
     manager.stop();
     await drainReaps(fixture);
+});
+
+test('the first-frame wait starts only once the stage can paint the player', async () => {
+    const fixture = new Fixture({held: new Set(['paintable'])});
+    const manager = fixture.manager();
+    const starting = manager.start();
+    await fixture.reached('paintable');
+    await sleep(20);
+    assertEqual(fixture.log.includes('frame'), false, 'no frame wait while hidden');
+    assertEqual(manager.getState(KEY), PlayerState.STARTING);
+    fixture.release('paintable');
+    await starting;
+    assertEqual(manager.getState(KEY), PlayerState.PLAYING);
+    manager.stop();
+    await drainReaps(fixture);
+
+    const hidden = new Fixture({held: new Set(['paintable'])});
+    const stopped = hidden.manager();
+    const pending = stopped.start();
+    await hidden.reached('paintable');
+    stopped.stop();
+    await pending;
+    assertEqual(hidden.log.includes('frame'), false, 'stop while hidden never waits for a frame');
+    assertEqual(hidden.processes[0].terminated, true);
+    await drainReaps(hidden);
 });
 
 await run();

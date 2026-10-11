@@ -36,5 +36,5 @@ A broken file or crashing player must never cause a restart loop or repeated spa
   - All timers are generation-guarded and removed by `stop()`.
 - A retry is a normal reconcile, so it waits for outstanding reaps, reuses the failed record's still layer, and gets a fresh socket.
 - `FailureNotifier` (`lib/notifier.js`) uses its own `MessageTray.Source`, which is destroyed on disable.
-- **Finding for T20:** GNOME starts in the Overview, which hides the window group. A player started there never paints its first frame. It times out after 10 s and burns through the retries. In the nested run the start failed 3/3 times until the probe hid the Overview. T20 must hold or extend readiness while the Overview is visible.
+- **Finding for T20:** GNOME starts in the Overview, which hides the window group. A player started there never paints its first frame. It times out after 10 s and burns through the retries. In the nested run the start failed 3/3 times until the probe hid the Overview. T20 must hold or extend readiness while the Overview is visible. Resolved in T20 (`waitForPaintable`).
 - Also fixed: a start that failed before handoff used to stay in the pending set.
