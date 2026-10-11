@@ -2,8 +2,8 @@
 
 - **Milestone:** M2
 - **Depends on:** T02, T03, T12
-- **Status:** todo
-- **Owner:**
+- **Status:** review
+- **Owner:** Claude Code
 - **Skills:** GSettings
 
 ## Goal
@@ -22,9 +22,15 @@ Make GNOME's own wallpaper (desktop, Overview, lock screen, login) show the vide
 
 ## Acceptance criteria
 
-- [ ] Enable → wallpaper becomes still; lock screen shows still.
-- [ ] Disable by user → original wallpaper restored exactly (light, dark, options).
-- [ ] Shell crash/restart while applied → next enable does not overwrite saved originals.
-- [ ] External wallpaper change while applied is preserved on restore.
-- [ ] Clear cache while applied, lock/unlock, and restore do not break the published light/dark URI. Published assets are preserved after restore (initial publication GC deferred).
-- [ ] Delayed system-background loading does not authorize removal of the matching owned static actor; stale lifecycle work cannot call apply after disable/restore.
+- [ ] Enable → wallpaper becomes still; lock screen shows still. Module ready and unit-tested; wiring into enable is T14, and live lock-screen verification belongs to the real-session gate.
+- [x] Disable by user → original wallpaper restored exactly (light, dark, options).
+- [x] Shell crash/restart while applied → next enable does not overwrite saved originals.
+- [x] External wallpaper change while applied is preserved on restore.
+- [x] Clear cache while applied, lock/unlock, and restore do not break the published light/dark URI. Published assets are preserved after restore (initial publication GC deferred).
+- [ ] Delayed system-background loading does not authorize removal of the matching owned static actor; stale lifecycle work cannot call apply after disable/restore. The second half is done: `apply()` returns `false` after `restore()`/`destroy()`. `apply()` is a synchronous settings write with no readiness signal; actor retention is T14.
+
+## Notes
+
+- GNOME Shell 50.1 source (`ui/unlockDialog.js`) creates the lock screen background with a default `BackgroundManager`, which uses `org.gnome.desktop.background` (blurred). `org.gnome.desktop.screensaver picture-uri` exists on this Ubuntu build but is not read by the Shell, so it is not synced. The GDM login screen uses the `gdm` user's settings, so it does not show the user's wallpaper.
+- Ownership is decided by `isPublishedUri` (a SHA-256-named PNG directly under the publication directory) rather than an in-memory flag, so a restarted Shell recognises its own earlier writes.
+- Tests use the GSettings memory backend and a temporary compiled schema; the real `org.gnome.desktop.background` is never touched.

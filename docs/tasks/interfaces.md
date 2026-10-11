@@ -205,13 +205,15 @@ Include fitMode and versioned transformation in identity; normalize SAR/rotation
 
 ```js
 export class WallpaperSync {
-    constructor(extensionSettings, logger)
-    apply(fileUri, pictureOptions = 'zoom') // accepts only persistent published wallpaper URI
-    restore()
+    constructor(extensionSettings, logger, backgroundSettings = new Gio.Settings(org.gnome.desktop.background))
+    apply(fileUri, pictureOptions = 'zoom') // accepts only persistent published wallpaper URI; -> false after restore/destroy
+    restore()                                // also refuses later apply() on this instance
+    destroy()                                // disconnects; does not restore
     get isApplied()
 }
+export function isPublishedUri(uri)          // file URI of <wallpaperDir>/<sha256>.png
 ```
-Save originals once and set both light/dark URIs. Applying does not prove background readiness.
+Save originals once and set both light/dark URIs. Applying does not prove background readiness. Writes are batched and skipped when values already match. While applied, a background change to a non-published URI (or to options other than ours) is saved as the new original. GNOME Shell 50's lock screen reads `org.gnome.desktop.background`; `org.gnome.desktop.screensaver picture-uri` is not used and is not synced.
 
 ## `lib/playerManager.js` (T09, extended by T14–T25) [shell]
 
