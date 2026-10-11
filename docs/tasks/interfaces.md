@@ -166,6 +166,9 @@ Validate SDR/display geometry; reject HDR with an actionable error.
 export function findProgram(name)             // -> absolute path or null
 export async function checkDependencies(cancellable)
 // -> {mpv, ffmpeg, ffprobe, vaapi} booleans; vaapi from `mpv --hwdec=help`
+export async function describeDependencies(cancellable)
+// -> {mpv, ffmpeg, ffprobe, vaapi}: {found, version|null} (T22)
+export function parseVersion(text)            // first-line version of `--version`/`-version` output
 ```
 
 ## `lib/cacheKey.js` (T12) [pure]
@@ -191,6 +194,7 @@ export async function composeSpanned(stills /* [{path, key}] */, canvas, cancell
 // cache identity includes ordered canvas mapping, component still identities and transformVersion
 export async function clearCache(cancellable)
 // -> {removedBytes, preservedActiveBytes, preservedWallpaperBytes}
+export async function cacheSize()            // -> bytes under the cache root; hard links counted once (T22)
 ```
 `ensureStill` and `releasePlaybackAsset` accept only assets returned by `acquirePlaybackAsset` in the same process. `CacheError.code` is one of `SOURCE_CHANGED`, `SOURCE_MISSING`, `NOT_ACQUIRED`, `STILL_MISSING`, `FFMPEG_MISSING`, `FFMPEG_FAILED`, `INVALID_STILL`, `INVALID_GEOMETRY`. `releasePlaybackAsset` returns a Promise that callers may ignore. `asset.identity` is `<original|optimized>:<path>|<size>|<mtime>|<WxH@scale>|<fitMode>|v<transformVersion>`.
 If optimized media is absent or disappears during acquisition, choose the original, acquire it, and prepare its matching still before handoff. Never silently change assets after still selection. No transcode during login. Clear-cache deletes a snapshot of eligible completed entries, not working directories, private active references or published wallpapers. Cancellation cleans only the caller's job/temp files, not another process's producer or shared publication.
@@ -281,6 +285,17 @@ export class LatestJobs { run(key, task) /* -> {value}|{error}|{cancelled: true}
 export const MonitorsPage // Adw.PreferencesPage({settings, toast}); close() cancels jobs and disconnects
 ```
 `applySelection` writes only after a successful probe, a valid target raster and an uncancelled job; it keeps the stored fit mode and optimize flag. Previews use `targetGeometry`, so they pre-warm the extension's still cache.
+
+## `prefs/generalPage.js`, `prefs/diagnosticsPage.js`, `prefs/bindings.js`, `prefs/diagnostics.js` (T22) [prefs]
+
+```js
+export function bindScaled(settings, key, target, property, factor) // uint key <-> scaled double; returns unbind
+export function bindChoice(settings, key, target, nicks)            // enum nick <-> `selected`; returns unbind
+export function installCommands(osRelease, missing)                  // -> ['sudo apt install mpv ffmpeg', ...]
+export function clearReport({removedBytes, preservedActiveBytes, preservedWallpaperBytes}, formatSize)
+export const GeneralPage     // Adw.PreferencesPage({settings}); close() unbinds
+export const DiagnosticsPage // Adw.PreferencesPage({toast}); refreshDependencies(), refreshSize(), clear(), close()
+```
 
 ## Visual acceptance boundary
 

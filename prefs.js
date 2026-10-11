@@ -1,17 +1,24 @@
 import Adw from 'gi://Adw';
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+import {DiagnosticsPage} from './prefs/diagnosticsPage.js';
+import {GeneralPage} from './prefs/generalPage.js';
 import {MonitorsPage} from './prefs/monitorsPage.js';
 
 export default class GinkVideoWallpaperPreferences extends ExtensionPreferences {
     fillPreferencesWindow(window) {
-        const page = new MonitorsPage({
-            settings: this.getSettings(),
-            toast: message => window.add_toast(new Adw.Toast({title: message, use_markup: false, timeout: 8})),
-        });
-        window.add(page);
+        const settings = this.getSettings();
+        const toast = message => window.add_toast(new Adw.Toast({title: message, use_markup: false, timeout: 8}));
+        const pages = [
+            new MonitorsPage({settings, toast}),
+            new GeneralPage({settings}),
+            new DiagnosticsPage({toast}),
+        ];
+        for (const page of pages)
+            window.add(page);
         window.connect('close-request', () => {
-            page.close();
+            for (const page of pages)
+                page.close();
             return false;
         });
     }
