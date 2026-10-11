@@ -230,6 +230,8 @@ One live player per logical monitor, including replacements. Startup: acquire se
 
 Replacement: prepare and display replacement still over old video → remove old clone → stop/reap old player → spawn/fade replacement. Bounded graceful stop is permitted for live replacement; serialize all starts with outstanding reaping, including rapid disable/re-enable. Disable synchronously increments generation, cancels waits/fades/retries, destroys actors/disconnects signals and immediately requests forceful termination. No grace timer may later touch extension state; residual reap owns only its old process/socket. Generation checks prevent stale work from spawning, publishing settings or touching a new lifecycle.
 
+T14: starts and reconciles are serialized, and a reconcile with an unchanged selection is a no-op. A failed or timed-out start terminates the player but keeps the layer showing the still; T16 supervises retries. The system wallpaper is applied only with one logical monitor until T26. Disable does not restore the wallpaper until T17.
+
 ## `lib/pauseController.js` (T19, T20) [shell]
 
 ```js

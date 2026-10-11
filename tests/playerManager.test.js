@@ -8,7 +8,8 @@ import {assertDeepEqual, assertEqual, assertThrows, run, test} from './harness.j
 
 const quiet = {debug() {}, info() {}, warn() {}, error() {}};
 const KEY = 'Virtual-1';
-const BOUNDARIES = ['resolve', 'static', 'socket', 'connect', 'load', 'content', 'frame', 'fade'];
+const BOUNDARIES = ['resolve', 'probe', 'acquire', 'still', 'publish', 'static', 'socket', 'connect', 'load',
+    'content', 'frame', 'fade'];
 
 function cancelledError() {
     return new GLib.Error(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED, 'cancelled');
@@ -23,6 +24,8 @@ class Fixture {
         this.layers = [];
         this.pauses = [];
         this.released = [];
+        this.acquired = [];
+        this.selection = 'video';
     }
 
     gate(name, cancellable, value) {
@@ -52,15 +55,39 @@ class Fixture {
         return {
             resolveTarget: ({cancellable}) => this.gate('resolve', cancellable, {
                 logicalMonitorKey: KEY, selectedPhysicalMonitorId: 'Virtual-1:a:b:', monitorIndex: 0,
-                stillPath: '/still.png',
-                asset: {path: '/video.mp4', identity: 'video#fill', geometryBaked: false,
-                    geometry: {fitMode: 'fill'}},
+                selectionKey: this.selection, file: `/${this.selection}.mp4`, optimizedPath: null,
+                geometry: {fitMode: 'fill'}, systemWallpaper: true,
             }),
+            probe: (path, cancellable) => this.gate('probe', cancellable, {path}),
+            acquireAsset: (media, geometry, {cancellable}) => {
+                const asset = {path: `/refs${media.path}`, identity: `${media.path}#fill`,
+                    geometryBaked: false, geometry};
+                return this.gate('acquire', cancellable, asset).then(value => {
+                    this.acquired.push(value);
+                    return value;
+                });
+            },
+            releaseAsset: asset => {
+                this.log.push(`release:${asset.path}`);
+                this.acquired.splice(this.acquired.indexOf(asset), 1);
+                return Promise.resolve();
+            },
+            ensureStill: (asset, _geometry, cancellable) => this.gate('still', cancellable, `/stills${asset.path}.png`),
+            publishWallpaper: (still, cancellable) => this.gate('publish', cancellable, `/wallpapers${still}`),
+            applyWallpaper: path => this.log.push(`apply:${path}`),
             createLayer: () => {
                 const fixture = this;
                 const layer = {
                     destroyed: false,
-                    prepareStatic: (_path, {cancellable}) => fixture.gate('static', cancellable),
+                    shown: null,
+                    prepareStatic: (path, {cancellable}) => fixture.gate('static', cancellable).then(() => {
+                        layer.shown ??= path;
+                        layer.prepared = path;
+                    }),
+                    showStatic: () => {
+                        fixture.log.push(`show:${layer.prepared}`);
+                        layer.shown = layer.prepared;
+                    },
                     watchWindow: (process, {cancellable}) => {
                         fixture.log.push(`watch:${process.started}`);
                         return fixture.gate('window', cancellable, 'window');
@@ -78,13 +105,17 @@ class Fixture {
             prepareSocket: ({cancellable}) => this.gate('socket', cancellable, '/run/mpv-1'),
             releaseSocket: path => this.released.push(path),
             createProcess: () => {
+                const fixture = this;
                 let reap;
                 const process = {
                     started: false, terminated: false, exit: null,
                     reaped: new Promise(resolve => {
                         reap = resolve;
                     }),
-                    reap: () => reap(),
+                    reap: () => {
+                        fixture.log.push(`reap:${fixture.processes.indexOf(process)}`);
+                        reap();
+                    },
                     onExit: callback => {
                         process.exit = callback;
                     },
@@ -95,7 +126,10 @@ class Fixture {
                     terminateNow: () => {
                         process.terminated = true;
                     },
-                    stop: () => process.reaped,
+                    stop: ({graceMs}) => {
+                        fixture.log.push(`stop:${graceMs}`);
+                        return process.reaped;
+                    },
                 };
                 this.processes.push(process);
                 return process;
@@ -137,13 +171,16 @@ test('startup order: still, watch before spawn, subscribe, paused load, both rea
     const fixture = new Fixture();
     const manager = fixture.manager();
     await manager.start();
-    assertDeepEqual(fixture.log, ['resolve', 'static', 'socket', 'watch:false', 'window', 'spawn', 'connect',
-        'cmd:keepaspect=true', 'cmd:panscan=1', 'load', 'content', 'attach:window', 'frame', 'fade']);
+    assertDeepEqual(fixture.log, ['resolve', 'probe', 'acquire', 'still', 'publish',
+        'apply:/wallpapers/stills/refs/video.mp4.png', 'static', 'socket', 'watch:false', 'window', 'spawn',
+        'connect', 'cmd:keepaspect=true', 'cmd:panscan=1', 'load', 'content', 'attach:window', 'frame', 'fade']);
+    assertEqual(fixture.layers[0].shown, '/wallpapers/stills/refs/video.mp4.png', 'published still displayed');
     assertDeepEqual(fixture.pauses, [false]);
     assertEqual(manager.getState(KEY), PlayerState.PLAYING);
     const player = manager.getPlayer(KEY);
     assertEqual(player.selectedPhysicalMonitorId, 'Virtual-1:a:b:');
-    assertEqual(player.asset.identity, 'video#fill');
+    assertEqual(player.asset.identity, '/video.mp4#fill');
+    assertEqual(player.asset.path, '/refs/video.mp4', 'private reference loaded');
     manager.stop();
     assertEqual(fixture.processes[0].terminated, true);
     assertEqual(fixture.layers[0].destroyed, true);
@@ -195,11 +232,14 @@ for (const boundary of BOUNDARIES) {
         fixture.gates.get(boundary).resolve();
         await starting;
         await sleep(5);
-        assertDeepEqual(fixture.log.slice(before), [], 'no work after stop');
+        assertDeepEqual(fixture.log.slice(before).filter(entry => !/^(stop|release):/.test(entry)), [],
+            'no work after stop');
         assertEqual(fixture.log.includes('spawn'), spawned, 'no stale spawn');
         assertEqual(manager.getState(KEY), PlayerState.STOPPED);
         assertDeepEqual(fixture.pauses, []);
         await drainReaps(fixture);
+        await sleep(1);
+        assertDeepEqual(fixture.acquired, [], 'acquired asset released');
     });
 }
 
@@ -239,19 +279,111 @@ test('re-enable waits for the previous reap before spawning', async () => {
     await drainReaps(fresh);
 });
 
-test('unexpected exit during readiness fails and releases the player', async () => {
+test('unexpected exit during readiness fails and leaves the still visible', async () => {
     const fixture = new Fixture({held: new Set(['frame'])});
     const manager = fixture.manager();
     const starting = manager.start();
     await fixture.reached('frame');
     fixture.processes[0].exit({status: 137, signaled: true});
     assertEqual(manager.getState(KEY), PlayerState.FAILED);
-    assertEqual(fixture.layers[0].destroyed, true);
+    assertEqual(fixture.layers[0].destroyed, false, 'still layer kept');
+    assertEqual(fixture.log.at(-2), 'show:/wallpapers/stills/refs/video.mp4.png', 'still shown over the clone');
     fixture.gates.get('frame').reject(new Error('layer destroyed'));
     await starting;
     assertEqual(manager.getState(KEY), PlayerState.FAILED);
     manager.stop();
+    assertEqual(fixture.layers[0].destroyed, true, 'disable removes the still layer');
     await drainReaps(fixture);
+});
+
+test('a failed step leaves the still and releases the asset only after reap', async () => {
+    const fixture = new Fixture();
+    const env = fixture.env();
+    env.createIpc = () => ({
+        connect: () => Promise.reject(new Error('socket timeout')),
+        close: () => Promise.resolve(),
+    });
+    const manager = new PlayerManagerLifecycle({env, logger: quiet, fadeMs: 0});
+    await manager.start();
+    assertEqual(manager.getState(KEY), PlayerState.FAILED);
+    assertEqual(fixture.layers[0].destroyed, false, 'still kept');
+    assertEqual(fixture.processes[0].terminated, true, 'player terminated');
+    await sleep(5);
+    assertEqual(fixture.acquired.length, 1, 'asset held until reap');
+    await drainReaps(fixture);
+    await sleep(1);
+    assertDeepEqual(fixture.acquired, [], 'asset released after reap');
+    manager.stop();
+});
+
+test('probe failure before any still keeps the system wallpaper and holds nothing', async () => {
+    const fixture = new Fixture();
+    const env = fixture.env();
+    env.probe = () => Promise.reject(new Error('HDR video is not supported'));
+    const manager = new PlayerManagerLifecycle({env, logger: quiet, fadeMs: 0});
+    await manager.start();
+    assertEqual(fixture.layers.length, 0, 'no layer');
+    assertEqual(fixture.log.some(entry => entry.startsWith('apply:')), false, 'system wallpaper untouched');
+    manager.stop();
+});
+
+test('replacement shows the new still, removes the old clone, reaps, then starts the new player', async () => {
+    const fixture = new Fixture();
+    const manager = fixture.manager();
+    await manager.start();
+    manager.setPaused(KEY, 'battery', true);
+    fixture.selection = 'next';
+    const before = fixture.log.length;
+    const replacing = manager.reconcile();
+    for (let i = 0; i < 50 && !fixture.log.includes('stop:1000'); i++)
+        await sleep(1);
+    await sleep(5);
+    assertEqual(fixture.processes.length, 1, 'no overlapping player before reap');
+    assertEqual(fixture.processes[0].terminated, false, 'graceful stop');
+    assertEqual(fixture.layers[0].shown, '/wallpapers/stills/refs/next.mp4.png', 'replacement still over old video');
+    fixture.processes[0].reap();
+    await replacing;
+    const NEXT = '/wallpapers/stills/refs/next.mp4.png';
+    assertDeepEqual(fixture.log.slice(before, before + 14), ['resolve', 'probe', 'acquire', 'still', 'publish',
+        `apply:${NEXT}`, 'static', `show:${NEXT}`, 'stop:1000', 'reap:0', 'release:/refs/video.mp4', 'static',
+        'socket', 'watch:false']);
+    assertEqual(fixture.layers[0].destroyed, true, 'old layer removed after the new still is prepared');
+    assertEqual(fixture.layers[1].shown, NEXT, 'new layer starts from the same still');
+    assertEqual(manager.getPlayer(KEY).asset.path, '/refs/next.mp4');
+    assertEqual(manager.getState(KEY), PlayerState.PAUSED, 'battery reason survives replacement');
+    assertDeepEqual(fixture.acquired.map(asset => asset.path), ['/refs/next.mp4']);
+    manager.stop();
+    await drainReaps(fixture);
+});
+
+test('reconcile with an unchanged selection keeps the running player', async () => {
+    const fixture = new Fixture();
+    const manager = fixture.manager();
+    await manager.start();
+    const before = fixture.log.length;
+    await manager.reconcile();
+    assertDeepEqual(fixture.log.slice(before), ['resolve']);
+    assertEqual(manager.getState(KEY), PlayerState.PLAYING);
+    manager.stop();
+    await drainReaps(fixture);
+});
+
+test('disable during graceful replacement terminates and removes everything', async () => {
+    const fixture = new Fixture();
+    const manager = fixture.manager();
+    await manager.start();
+    fixture.selection = 'next';
+    const replacing = manager.reconcile();
+    for (let i = 0; i < 50 && !fixture.log.includes('stop:1000'); i++)
+        await sleep(1);
+    manager.stop();
+    assertEqual(fixture.processes[0].terminated, true, 'forceful termination requested');
+    assertEqual(fixture.layers.every(layer => layer.destroyed), true, 'layers destroyed');
+    await drainReaps(fixture);
+    await replacing;
+    await sleep(5);
+    assertEqual(fixture.processes.length, 1, 'no stale spawn');
+    assertDeepEqual(fixture.acquired, [], 'both assets released');
 });
 
 test('start twice without stop is rejected; setPaused validates arguments', async () => {

@@ -28,7 +28,7 @@ Read first:
 | [T11](T11-media-probe.md) | Media probe (ffprobe) | M2 | T03 | review | Claude Code |
 | [T12](T12-still-cache.md) | Still frame cache (ffmpeg) | M2 | T04, T11 | review | Claude Code |
 | [T13](T13-wallpaper-sync.md) | System wallpaper sync | M2 | T02, T03, T12 | review | Claude Code |
-| [T14](T14-flicker-free-handoff.md) | Flicker-free still → video handoff | M2 | T09, T12, T13 | todo | |
+| [T14](T14-flicker-free-handoff.md) | Flicker-free still → video handoff | M2 | T09, T12, T13 | review | Claude Code |
 | [T15](T15-startup-gate.md) | Startup gating and staggered start | M3 | T09 | todo | |
 | [T16](T16-player-supervisor.md) | Bounded retries and failure notification | M3 | T09, T14 | todo | |
 | [T17](T17-lock-and-disable.md) | Lock/unlock and disable semantics | M3 | T13, T14, T15 | todo | |
