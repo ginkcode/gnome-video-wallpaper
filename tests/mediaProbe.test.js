@@ -48,6 +48,21 @@ async function expectCode(promise, code) {
     throw new Error(`expected ProbeError ${code}`);
 }
 
+// A delayed ffprobe keeps the probe in flight, so cancellation never races a fast machine.
+async function withSlowFfprobe(callback) {
+    const bin = `${root}/slow-bin`;
+    GLib.mkdir_with_parents(bin, 0o755);
+    GLib.file_set_contents(`${bin}/ffprobe`, `#!/bin/sh\nsleep 0.3\nexec '${ffprobe}' "$@"\n`);
+    GLib.chmod(`${bin}/ffprobe`, 0o755);
+    const path = GLib.getenv('PATH');
+    GLib.setenv('PATH', `${bin}:${path}`, true);
+    try {
+        return await callback();
+    } finally {
+        GLib.setenv('PATH', path, true);
+    }
+}
+
 async function expectCancelled(promise) {
     try {
         await promise;
@@ -174,25 +189,29 @@ if (ffmpeg && ffprobe) {
     test('cancelling one caller keeps shared work for another', async () => {
         clearProbeCache();
         const path = sample('shared.mp4', x264);
-        const cancellable = new Gio.Cancellable();
-        const cancelled = probe(path, cancellable);
-        const survivor = probe(path);
-        await sleep(20);
-        cancellable.cancel();
-        await expectCancelled(cancelled);
-        assertEqual((await survivor).width, 96, 'survivor result');
+        await withSlowFfprobe(async () => {
+            const cancellable = new Gio.Cancellable();
+            const cancelled = probe(path, cancellable);
+            const survivor = probe(path);
+            await sleep(20);
+            cancellable.cancel();
+            await expectCancelled(cancelled);
+            assertEqual((await survivor).width, 96, 'survivor result');
+        });
     });
 
     test('cancelling the only caller settles promptly and allows a fresh probe', async () => {
         clearProbeCache();
         const path = sample('alone.mp4', x264);
-        const cancellable = new Gio.Cancellable();
-        const pending = probe(path, cancellable);
-        await sleep(20);
-        const started = GLib.get_monotonic_time();
-        cancellable.cancel();
-        await expectCancelled(pending);
-        assertEqual(GLib.get_monotonic_time() - started < 100000, true, 'prompt cancellation');
+        await withSlowFfprobe(async () => {
+            const cancellable = new Gio.Cancellable();
+            const pending = probe(path, cancellable);
+            await sleep(20);
+            const started = GLib.get_monotonic_time();
+            cancellable.cancel();
+            await expectCancelled(pending);
+            assertEqual(GLib.get_monotonic_time() - started < 100000, true, 'prompt cancellation');
+        });
         assertEqual((await probe(path)).width, 96, 'fresh probe');
     });
 
