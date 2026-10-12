@@ -33,6 +33,8 @@ class GeneralPage extends Adw.PreferencesPage {
             'Maximized or fullscreen windows'));
         pause.add(this._switch('pause-on-overview', 'In the Overview'));
         pause.add(this._switch('pause-on-battery', 'On battery power'));
+        pause.add(this._switch('pause-on-remote', 'While the screen is shared',
+            'Screen sharing, remote desktop and remote login'));
         this.add(pause);
 
         const playlist = new Adw.PreferencesGroup({title: 'Playlists',

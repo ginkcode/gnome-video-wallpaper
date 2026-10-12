@@ -99,7 +99,7 @@ def main():
         clear = events.get('clear', {})
         before, after = clear.get('before', {}), clear.get('after', {})
         checks = {
-            'settingsRoundTrip': len(general) == 10 and all(v['ok'] and v['followsExternalReset']
+            'settingsRoundTrip': len(general) == 11 and all(v['ok'] and v['followsExternalReset']
                                                              for v in general.values()),
             'diagnosticsFound': all(diag.get(k, {}).get('icon') == 'object-select-symbolic' and diag[k]['version']
                                     for k in ('mpv', 'ffmpeg', 'ffprobe')),

@@ -83,6 +83,7 @@ async function generalRoundTrip(settings) {
         [Adw.SwitchRow, 'When a window covers the display', 'active', false, 'pause-on-maximized', 'false'],
         [Adw.SwitchRow, 'In the Overview', 'active', false, 'pause-on-overview', 'false'],
         [Adw.SwitchRow, 'On battery power', 'active', false, 'pause-on-battery', 'false'],
+        [Adw.SwitchRow, 'While the screen is shared', 'active', false, 'pause-on-remote', 'false'],
         [Adw.ComboRow, 'Default fit mode', 'selected', 2, 'default-fit-mode', "'stretch'"],
         [Adw.SwitchRow, 'Optimize videos', 'active', true, 'optimize-videos', 'true'],
         [Adw.ComboRow, 'Video output', 'selected', 1, 'video-output', "'gpu-next'"],

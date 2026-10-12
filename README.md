@@ -9,9 +9,9 @@ Play videos and GIFs as your GNOME desktop wallpaper, with a separate wallpaper 
 - A video or GIF wallpaper for each monitor, with fill, fit or stretch placement.
 - Playlists that change video on a timer, in order or shuffled.
 - Shows a still frame of the video right away at login, then fades into playback.
-- Can pause on battery, in the Overview, or when windows cover the desktop.
+- Can pause on battery, in the Overview, when windows cover the desktop, or while the screen is shared or accessed remotely.
 - Optional display-sized copies of each video that use less power.
-- A top bar menu with Play/Pause, Next Video and Preferences.
+- A top bar menu with Play/Pause, Next Video and Preferences that also shows why the video paused automatically.
 - Restores your original wallpaper when the extension is disabled.
 
 ## Requirements

@@ -295,6 +295,26 @@ test('two pause reasons resume only when both are cleared', async () => {
     await drainReaps(fixture);
 });
 
+test('pause reasons are reported for current targets and changes notify listeners', async () => {
+    const fixture = new Fixture();
+    const manager = fixture.manager();
+    await manager.start();
+    let notified = 0;
+    const unsubscribe = manager.onPauseChanged(() => notified++);
+    manager.setPaused(KEY, 'battery', true);
+    manager.setPaused(KEY, 'battery', true);
+    manager.setPaused('other', 'remote', true);
+    assertDeepEqual([...manager.pauseReasons()], ['battery'], 'only current targets count');
+    assertEqual(notified, 2, 'repeated reason is silent');
+    manager.stop();
+    assertDeepEqual([...manager.pauseReasons()], [], 'cleared on stop');
+    assertEqual(notified, 3, 'stop notifies');
+    unsubscribe();
+    manager.setPaused(KEY, 'battery', true);
+    assertEqual(notified, 3, 'unsubscribed');
+    await drainReaps(fixture);
+});
+
 test('clearing startup preserves reasons set while starting', async () => {
     const fixture = new Fixture({held: new Set(['content'])});
     const manager = fixture.manager();

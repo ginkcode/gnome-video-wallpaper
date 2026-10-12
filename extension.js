@@ -50,7 +50,7 @@ export default class GinkVideoWallpaper extends Extension {
         this._pause.enable();
         this._userPause = new UserPauseController({playerManager: this._manager, settings: this._settings});
         this._userPause.enable();
-        this._indicator = new PanelIndicator({uuid: this.uuid, settings: this._settings,
+        this._indicator = new PanelIndicator({uuid: this.uuid, settings: this._settings, playerManager: this._manager,
             openPreferences, next: () => this._playlist?.advance()});
         this._indicator.enable();
         const reconcile = () => {

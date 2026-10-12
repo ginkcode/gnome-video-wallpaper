@@ -2,7 +2,7 @@ import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
 import {sleep} from '../lib/async.js';
-import {BATTERY, OVERVIEW, SessionPauseController} from '../lib/sessionPauseController.js';
+import {BATTERY, OVERVIEW, REMOTE, SessionPauseController} from '../lib/sessionPauseController.js';
 import {assertDeepEqual, assertEqual, assertThrows, run, test} from './harness.js';
 
 const quiet = {debug() {}, info() {}, warn() {}, error() {}};
@@ -53,7 +53,7 @@ class FakeOverview extends Emitter {
 class FakeSettings extends Emitter {
     constructor() {
         super();
-        this.values = {'pause-on-overview': true, 'pause-on-battery': true};
+        this.values = {'pause-on-overview': true, 'pause-on-battery': true, 'pause-on-remote': true};
     }
 
     get_boolean(key) {
@@ -79,6 +79,13 @@ class FakeBattery extends Emitter {
     set(onBattery) {
         this.onBattery = onBattery;
         this.emit('g-properties-changed');
+    }
+}
+
+class FakeHandle extends Emitter {
+    constructor(isRecording = false) {
+        super();
+        this.is_recording = isRecording;
     }
 }
 
@@ -116,13 +123,14 @@ class FakeManager {
     }
 }
 
-function setup({battery = new FakeBattery(false), proxy = null} = {}) {
+function setup({battery = new FakeBattery(false), proxy = null, isRemoteSession = undefined} = {}) {
     const overview = new FakeOverview();
     const settings = new FakeSettings();
     const manager = new FakeManager();
+    const remoteAccess = new Emitter();
     const controller = new SessionPauseController({playerManager: manager, settings, overview, logger: quiet,
-        createBatteryProxy: proxy ?? (() => Promise.resolve(battery))});
-    return {overview, settings, manager, controller, battery};
+        createBatteryProxy: proxy ?? (() => Promise.resolve(battery)), remoteAccess, isRemoteSession});
+    return {overview, settings, manager, controller, battery, remoteAccess};
 }
 
 test('the Overview pauses every player and closing it resumes', async () => {
@@ -209,6 +217,52 @@ test('a missing UPower leaves only the Overview reason working', async () => {
     overview.show();
     assertDeepEqual(manager.of('A'), [OVERVIEW]);
     controller.disable();
+});
+
+test('screen sharing pauses until every remote handle stops; recordings are ignored', async () => {
+    const {settings, manager, controller, remoteAccess} = setup();
+    controller.enable();
+    await sleep(1);
+    remoteAccess.emit('new-handle', new FakeHandle(true));
+    assertDeepEqual(manager.of('A'), [], 'shell recording');
+    const first = new FakeHandle();
+    const second = new FakeHandle();
+    remoteAccess.emit('new-handle', first);
+    remoteAccess.emit('new-handle', second);
+    assertDeepEqual([manager.of('A'), manager.of('B')], [[REMOTE], [REMOTE]]);
+    first.emit('stopped');
+    assertDeepEqual(manager.of('A'), [REMOTE], 'one session still active');
+    settings.set('pause-on-remote', false);
+    assertDeepEqual(manager.of('A'), [], 'setting off');
+    settings.set('pause-on-remote', true);
+    assertDeepEqual(manager.of('A'), [REMOTE], 'setting on');
+    second.emit('stopped');
+    assertDeepEqual(manager.of('A'), []);
+    assertDeepEqual([first.handlers.size, second.handlers.size], [0, 0]);
+    controller.disable();
+});
+
+test('a remote login session pauses; disable releases remote handles', async () => {
+    const {manager, controller, remoteAccess} = setup({isRemoteSession: () => Promise.resolve(true)});
+    controller.enable();
+    await sleep(1);
+    assertDeepEqual(manager.of('A'), [REMOTE]);
+    const handle = new FakeHandle();
+    remoteAccess.emit('new-handle', handle);
+    controller.disable();
+    assertDeepEqual([remoteAccess.handlers.size, handle.handlers.size], [0, 0]);
+});
+
+test('a remote session reply after disable is ignored', async () => {
+    let resolveRemote;
+    const {manager, controller} = setup({isRemoteSession: () => new Promise(resolve => {
+        resolveRemote = resolve;
+    })});
+    controller.enable();
+    controller.disable();
+    resolveRemote(true);
+    await sleep(1);
+    assertDeepEqual(manager.of('A'), []);
 });
 
 await run();

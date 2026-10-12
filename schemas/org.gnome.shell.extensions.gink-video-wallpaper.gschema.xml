@@ -63,6 +63,12 @@
       <description>Pause players while running on battery power.</description>
     </key>
 
+    <key name="pause-on-remote" type="b">
+      <default>true</default>
+      <summary>Pause while shared or remote</summary>
+      <description>Pause players while the screen is shared or accessed remotely, and in remote login sessions.</description>
+    </key>
+
     <key name="playlist-interval-minutes" type="u">
       <default>30</default>
       <range min="1" max="1440"/>

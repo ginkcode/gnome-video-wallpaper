@@ -15,6 +15,7 @@ Authoritative definition: [tasks/T02-gsettings-schema.md](tasks/T02-gsettings-sc
 | `pause-on-maximized` | `b` | `true` | Pause when a maximized/fullscreen window covers the monitor |
 | `pause-on-overview` | `b` | `true` | Pause while the Overview is visible |
 | `pause-on-battery` | `b` | `true` | Pause while on battery power |
+| `pause-on-remote` | `b` | `true` | Pause while the screen is shared or accessed remotely (not the Shell's own recorder), and in remote login sessions |
 | `optimize-videos` | `b` | `false` | Prepare target-sized SDR H.264 in prefs (GIFs always prepared); no login transcode |
 | `video-output` | enum `auto` / `gpu-next` / `dmabuf-wayland` | `auto` | mpv VO; `auto` maps to `dmabuf-wayland,wlshm` with `--hwdec=vaapi` on the development device per [T10](benchmarks/vo-benchmark.md), provisional until real-session verification |
 | `max-retries` | `u` | `3` | Player restart limit before staying on the still |

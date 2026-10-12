@@ -92,6 +92,9 @@ def main():
         steps = events.get('steps', {})
         checks = {
             'indicatorShown': steps.get('shown') is True and steps.get('labels') == ['Pause', 'Next Video', 'Preferences'],
+            'statusExplainsAutoPause': steps.get('status') == [
+                {'label': 'Pause', 'status': 'Paused automatically: the Overview is open'},
+                {'label': 'Pause', 'status': None}],
             'toggleControlsPlayback': steps.get('toggle') == [
                 {'label': 'Play', 'paused': True, 'state': 'paused', 'pause': True},
                 {'label': 'Pause', 'paused': False, 'state': 'playing', 'pause': False}],

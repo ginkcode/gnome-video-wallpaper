@@ -83,6 +83,16 @@ export default class T29Probe extends Extension {
         await this._snapshot('playing');
         steps.shown = indicator() !== null && Main.panel._rightBox.contains(indicator());
         steps.labels = items().map(item => item.label.text);
+        steps.status = [];
+        for (const show of [true, false]) {
+            if (show)
+                Main.overview.show();
+            else
+                Main.overview.hide();
+            const {label} = await this._snapshot(show ? 'paused' : 'playing');
+            const status = indicator()._status;
+            steps.status.push({label, status: status.visible ? status.label.text : null});
+        }
         steps.toggle = [];
         for (const state of ['paused', 'playing']) {
             items()[0].activate(null);
