@@ -52,6 +52,7 @@ Read first:
 | [T35](T35-deterministic-probe-tests.md) | Deterministic probe cancellation tests | M7 | T11 | review | Claude Code |
 | [T36](T36-release-1-1.md) | Release 1.1 | M7 | T28, T34, T35 | review | Claude Code |
 | [T37](T37-remote-pause-and-status.md) | Pause while shared or remote; show auto-pause reasons | M7 | T20, T29 | review | Claude Code |
+| [T38](T38-release-1-2.md) | Release 1.2 | M7 | T36, T37 | review | Claude Code |
 
 ## Parallel tracks
 

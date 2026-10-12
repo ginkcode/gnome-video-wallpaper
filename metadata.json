@@ -3,7 +3,7 @@
   "name": "Gink Video Wallpaper",
   "description": "Play videos and GIFs as the desktop wallpaper, with a separate wallpaper for each monitor.\n\nFeatures:\n- Fill, fit or stretch per monitor\n- Playlists that change video on a timer, in order or shuffled\n- Can pause on battery, in the Overview or when windows cover the desktop\n- Optional display-sized copies that use less power\n- Top bar menu with Play/Pause, Next Video and Preferences\n\nRequires mpv and ffmpeg from your distribution. The extension runs mpv to play the wallpaper and ffmpeg (with ffprobe) to check videos and create still frames and optimized copies.\n\nSupport development: https://buymeacoffee.com/ginkcode",
   "shell-version": ["50"],
-  "version-name": "1.1",
+  "version-name": "1.2",
   "settings-schema": "org.gnome.shell.extensions.gink-video-wallpaper",
   "session-modes": ["user"],
   "url": "https://github.com/ginkcode/gnome-video-wallpaper",
