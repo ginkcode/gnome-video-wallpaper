@@ -50,6 +50,7 @@ Read first:
 | [T33](T33-playlist-state-sync.md) | Store every playlist pick | M7 | T30, T32 | review | Claude Code |
 | [T34](T34-driver-notice-and-cleanups.md) | VA-API driver notice and runtime fixes | M7 | T16, T29, T33 | review | Claude Code |
 | [T35](T35-deterministic-probe-tests.md) | Deterministic probe cancellation tests | M7 | T11 | review | Claude Code |
+| [T36](T36-release-1-1.md) | Release 1.1 | M7 | T28, T34, T35 | review | Claude Code |
 
 ## Parallel tracks
 

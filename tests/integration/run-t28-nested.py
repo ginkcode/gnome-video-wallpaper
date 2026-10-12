@@ -20,6 +20,7 @@ spec.loader.exec_module(t09)
 UUID = 'gink-video-wallpaper@ginkcode.github.io'
 PROBE = 't28-probe@ginkcode.github.io'
 ZIP = ROOT / 'dist' / f'{UUID}.shell-extension.zip'
+VERSION_NAME = json.loads((ROOT / 'metadata.json').read_text())['version-name']
 
 
 def environment(base):
@@ -104,7 +105,7 @@ def main():
             'zipHasNoStrayFiles': not any(name.endswith(('.gitkeep', '.compiled')) for name in packed),
             'schemaCompiledOnInstall': 'schemas/gschemas.compiled' in installed,
             'installedFromZip': (steps.get('installed') or {}).get('path', '').startswith(str(base / 'data')),
-            'versionName': (steps.get('installed') or {}).get('version') == '1.0',
+            'versionName': (steps.get('installed') or {}).get('version') == VERSION_NAME,
             'active': steps.get('stateEnabled') == 1,
             'playing': steps.get('playing') is True,
             'indicator': steps.get('indicator') is True,

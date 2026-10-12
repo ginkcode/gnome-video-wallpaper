@@ -1,4 +1,6 @@
-# Release checklist — v1 (`version-name` 1.0)
+# Release checklist — v1.1 (`version-name` 1.1)
+
+v1.1 adds the VA-API driver notice and runtime fixes from T34 and T35 on top of v1.0.
 
 Self-check against the [extensions.gnome.org review guidelines](https://gjs.guide/extensions/review-guidelines/review-guidelines.html), plus the packaging and manual checks from T28.
 
@@ -19,7 +21,7 @@ Self-check against the [extensions.gnome.org review guidelines](https://gjs.guid
 - [x] **`session-modes` is justified.** It is `["user"]` only (see [architecture.md](architecture.md)). On lock, GNOME disables the extension, the players stop, and the lock screen shows the still through the system wallpaper.
 - [x] **Shell and prefs are separated.** `extension.js` and `lib/` import no Gtk, Gdk or Adw; `prefs.js` and `prefs/` import no Meta, St, Clutter or `ui/main.js`.
 - [x] **Logging is quiet.** Debug messages are gated by the `debug-logging` setting. Only errors and a few one-line status messages (no configured wallpaper, a player retry) are logged by default.
-- [x] **`metadata.json` follows the rules.** No `version` field (EGO assigns it), `version-name` is `1.0`, `shell-version` is `["50"]`, and the `url` and `donations` fields are filled in.
+- [x] **`metadata.json` follows the rules.** No `version` field (EGO assigns it), `version-name` is `1.1`, `shell-version` is `["50"]`, and the `url` and `donations` fields are filled in.
 - [x] **License.** MIT, which is GPL-compatible; `LICENSE` is included in the zip.
 
 ## Packaging
@@ -27,7 +29,7 @@ Self-check against the [extensions.gnome.org review guidelines](https://gjs.guid
 - [x] `make zip` produces `dist/gink-video-wallpaper@ginkcode.github.io.shell-extension.zip`. It ships the schema XML only; `gnome-extensions install` compiles it.
 - [x] `python3 -I tests/integration/run-t28-nested.py` builds the zip and installs it with `gnome-extensions install --force` into a fresh private `HOME`/`XDG_*`. It then starts a headless GNOME Shell 50 and checks the following, all of which pass:
   - the compiled schema exists after install;
-  - the extension loads from the private directory with `version-name` 1.0;
+  - the extension loads from the private directory with the `version-name` from `metadata.json`;
   - the extension becomes ACTIVE and its player is playing;
   - the panel indicator appears;
   - disabling stops the player and removes the indicator;
