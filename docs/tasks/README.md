@@ -48,6 +48,7 @@ Read first:
 | [T31](T31-workspace-switch.md) | Workspace switching with open windows | M7 | T08, T27 | review | Claude Code |
 | [T32](T32-video-list-preview.md) | Video list preview selection | M7 | T30 | review | Claude Code |
 | [T33](T33-playlist-state-sync.md) | Store every playlist pick | M7 | T30, T32 | review | Claude Code |
+| [T34](T34-driver-notice-and-cleanups.md) | VA-API driver notice and runtime fixes | M7 | T16, T29, T33 | review | Claude Code |
 | [T35](T35-deterministic-probe-tests.md) | Deterministic probe cancellation tests | M7 | T11 | review | Claude Code |
 
 ## Parallel tracks

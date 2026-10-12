@@ -71,7 +71,7 @@ Stills and optimized copies are stored in `~/.cache/gink-video-wallpaper`.
 
 - **A video does not play and the still or original wallpaper stays.** Open the preferences: the display shows the error. Check that `mpv` and `ffmpeg` are installed (see **Diagnostics**). Some distributions ship `ffmpeg` without patented codecs such as H.264 or HEVC. Install the full codec packages, or convert the video to VP9/AV1 WebM.
 - **HDR videos are rejected.** Only SDR videos are supported. Convert the video to SDR first.
-- **High CPU usage.** Hardware decoding needs working VA-API drivers (`vainfo` should list your GPU). Turn on **Optimize video** for large files.
+- **High CPU usage.** Hardware decoding needs working VA-API drivers (`vainfo` should list your GPU). A notification appears when playback falls back to CPU decoding. On Intel install `intel-media-va-driver`; on AMD `mesa-va-drivers`. Turn on **Optimize video** for large files.
 - **NVIDIA.** The proprietary driver has no native VA-API support. Install `nvidia-vaapi-driver`, or expect software decoding and turn on optimized copies. If the video shows glitches, try another **Video output** under General → Playback → Advanced.
 - **Hanabi.** Hanabi also draws a video wallpaper. The preferences show a banner with a button to disable it. Do not run both extensions.
 - **Dash to Dock hides itself on an empty desktop.** Set Dash to Dock to *Intelligent autohide → Only maximized windows*, or turn intellihide off.

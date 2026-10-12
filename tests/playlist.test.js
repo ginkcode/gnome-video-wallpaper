@@ -97,6 +97,12 @@ test('every pick is stored so preferences show the playing file', () => {
     assertDeepEqual(JSON.parse(settings.values['playlist-state']).M, '/b.mp4', 'random restart after removal');
 });
 
+test('a display reduced to one file drops its stored position', () => {
+    const {settings, playlist} = setup({'playlist-state': JSON.stringify({M: '/gone.mp4', N: '/kept.mp4'})});
+    assertEqual(playlist.fileFor('M', ['/single.mp4']), '/single.mp4');
+    assertDeepEqual(JSON.parse(settings.values['playlist-state']), {N: '/kept.mp4'});
+});
+
 test('random order picks a random start and a different next file', () => {
     const {playlist} = setup({'playlist-order': 'random'}, {random: () => 0.7});
     assertEqual(playlist.fileFor('M', FILES), '/c.gif');

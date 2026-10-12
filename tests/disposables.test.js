@@ -58,6 +58,26 @@ GLib.timeout_add(GLib.PRIORITY_DEFAULT, 30, () => {
 });
 loop.run();
 
+const Destroyable = GObject.registerClass({
+    Signals: {'pinged': {}, 'destroy': {}},
+}, class Destroyable extends GObject.Object {
+    disconnect(id) {
+        this.disconnects = (this.disconnects ?? 0) + 1;
+        return super.disconnect(id);
+    }
+});
+
+const destroyed = new Destroyable();
+const kept = new Destroyable();
+const watching = new Disposables();
+watching.connect(destroyed, 'pinged', () => {});
+watching.connect(destroyed, 'notify', () => {});
+watching.connect(kept, 'pinged', () => {});
+destroyed.emit('destroy');
+watching.dispose();
+assert(!destroyed.disconnects, 'destroyed objects are not disconnected');
+assert(kept.disconnects === 2, 'live objects lose their handler and the destroy watch');
+
 if (failures > 0)
     throw new Error(`${failures} assertion(s) failed`);
 console.log('disposables tests passed');

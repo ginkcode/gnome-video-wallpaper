@@ -408,6 +408,31 @@ test('a failed step leaves the still and releases the asset only after reap', as
     manager.stop();
 });
 
+test('software decoding is reported once, hardware decoding is not', async () => {
+    for (const [hwdec, expected] of [['no', [KEY]], ['vaapi', []]]) {
+        const fixture = new Fixture();
+        const env = fixture.env();
+        const reports = [];
+        env.softwareDecoding = key => reports.push(key);
+        const createIpc = env.createIpc;
+        env.createIpc = path => {
+            const ipc = createIpc(path);
+            const command = ipc.command;
+            ipc.command = (args, options) => args[0] === 'get_property' ? Promise.resolve(hwdec)
+                : command(args, options);
+            return ipc;
+        };
+        const manager = new PlayerManagerLifecycle({env, logger: quiet, fadeMs: 0});
+        await manager.start();
+        await sleep(1);
+        manager._checkDecoder(manager.getPlayer(KEY));
+        await sleep(1);
+        assertDeepEqual(reports, expected, hwdec);
+        manager.stop();
+        await drainReaps(fixture);
+    }
+});
+
 test('probe failure before any still keeps the system wallpaper and holds nothing', async () => {
     const fixture = new Fixture();
     const env = fixture.env();

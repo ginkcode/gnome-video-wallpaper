@@ -21,13 +21,17 @@ export default class GinkVideoWallpaper extends Extension {
     enable() {
         const begin = GLib.get_monotonic_time();
         this._settings = this.getSettings();
-        setDebugEnabled(this._settings.get_boolean('debug-logging'));
+        const syncDebug = () => setDebugEnabled(this._settings.get_boolean('debug-logging'));
+        syncDebug();
+        this._debugChanged = this._settings.connect('changed::debug-logging', syncDebug);
         const log = createLogger('extension');
+        const openPreferences = () => Promise.resolve(this.openPreferences())
+            .catch(error => log.error(`preferences failed to open: ${error.message}`));
         this._hanabi = new HanabiWatcher({extensionManager: Main.extensionManager});
         this._hanabi.enable();
         this._playlist = new Playlist({settings: this._settings, onChange: () => reconcile()});
         this._manager = new PlayerManager({settings: this._settings,
-            openPreferences: () => this.openPreferences(),
+            openPreferences,
             fileFor: (id, files) => this._playlist.fileFor(id, files)});
         this._animationFilter = new WorkspaceAnimationFilter({isOwn: window => this._manager?.ownsWindow(window)});
         this._animationFilter.enable();
@@ -47,7 +51,7 @@ export default class GinkVideoWallpaper extends Extension {
         this._userPause = new UserPauseController({playerManager: this._manager, settings: this._settings});
         this._userPause.enable();
         this._indicator = new PanelIndicator({uuid: this.uuid, settings: this._settings,
-            openPreferences: () => this.openPreferences(), next: () => this._playlist?.advance()});
+            openPreferences, next: () => this._playlist?.advance()});
         this._indicator.enable();
         const reconcile = () => {
             if (this._manager?.started)
@@ -87,6 +91,9 @@ export default class GinkVideoWallpaper extends Extension {
         this._animationFilter = null;
         this._hanabi?.disable();
         this._hanabi = null;
+        this._settings?.disconnect(this._debugChanged);
+        this._debugChanged = 0;
+        setDebugEnabled(false);
         this._settings = null;
     }
 }
