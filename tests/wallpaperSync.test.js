@@ -19,8 +19,11 @@ const logger = {debug() {}, info() {}, warn() {}, error() {}};
 const ORIGINAL = {
     'picture-uri': 'file:///usr/share/backgrounds/light.png',
     'picture-uri-dark': 'file:///usr/share/backgrounds/dark.png',
-    'picture-options': 'spanned',
+    'picture-options': 'centered',
+    'primary-color': '#023c88',
+    'color-shading-type': 'vertical',
 };
+const STILL = {'picture-options': 'zoom', 'primary-color': '#000000', 'color-shading-type': 'solid'};
 
 function settings(id, backend) {
     return new Gio.Settings({settings_schema: source.lookup(id, true), backend});
@@ -65,7 +68,7 @@ test('apply saves originals once and restore brings them back exactly', () => {
     const first = published('first');
     assertEqual(sync.apply(first), true, 'applied');
     assertEqual(JSON.stringify(current(background)), JSON.stringify(
-        {'picture-uri': first, 'picture-uri-dark': first, 'picture-options': 'zoom'}), 'still applied');
+        {'picture-uri': first, 'picture-uri-dark': first, ...STILL}), 'still applied on a black background');
     assertEqual(sync.isApplied, true, 'isApplied');
     sync.apply(published('second'));
     assertEqual(extension.get_string('saved-picture-uri'), ORIGINAL['picture-uri'], 'originals kept');
@@ -110,12 +113,29 @@ test('external change while applied becomes the restored original', () => {
     const sync = new WallpaperSync(extension, logger, background);
     sync.apply(published('external'));
     background.set_string('picture-uri', 'file:///home/user/new-light.jpg');
-    background.set_string('picture-options', 'centered');
+    background.set_string('picture-options', 'wallpaper');
     sync.apply(published('external-2'));
     sync.restore();
     assertEqual(JSON.stringify(current(background)), JSON.stringify({...ORIGINAL,
-        'picture-uri': 'file:///home/user/new-light.jpg', 'picture-options': 'centered'}), 'user change kept');
+        'picture-uri': 'file:///home/user/new-light.jpg', 'picture-options': 'wallpaper'}), 'user change kept');
     sync.destroy();
+});
+
+test('wallpaper changed while the extension was off becomes the restored original', () => {
+    const {background, extension} = session();
+    const before = new WallpaperSync(extension, logger, background);
+    before.apply(published('off'));
+    before.destroy();
+    background.set_string('picture-uri', 'file:///home/user/while-off.jpg');
+    background.set_string('primary-color', '#ffffff');
+    const after = new WallpaperSync(extension, logger, background);
+    after.apply(published('on-again'), 'scaled');
+    assertEqual(background.get_string('picture-options'), 'scaled', 'fit mode applied');
+    after.restore();
+    assertEqual(JSON.stringify(current(background)), JSON.stringify({...ORIGINAL,
+        'picture-uri': 'file:///home/user/while-off.jpg', 'picture-options': 'zoom', 'primary-color': '#ffffff'}),
+    'the new picture keeps its options; unchanged keys stay saved');
+    after.destroy();
 });
 
 test('publication survives clear cache and restore', async () => {

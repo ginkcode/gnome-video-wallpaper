@@ -100,7 +100,8 @@ def main():
             'noMpvWhileLocked': locked.get('lockedOff') is True and locked.get('firstAlive') is False,
             'unlockResumesAfterDelay': bool(unlocked.get('secondPid')) and
             unlocked.get('secondPid') != unlocked.get('firstPid') and unlocked.get('resumeMs', 0) >= 1500,
-            'disableRestores': disabled.get('restored') == original and disabled.get('secondAlive') is False,
+            'disableKeepsStill': disabled.get('wallpaper') == locked.get('applied') and
+            disabled.get('secondAlive') is False,
             'noOverlap': monitor.max_concurrent <= 1,
             'noSurvivors': not survivors,
             'noJsErrors': not any('JS ERROR' in m for m in messages) and 'fail' not in events,

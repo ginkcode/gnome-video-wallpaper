@@ -96,7 +96,7 @@ export default class T17Probe extends Extension {
         Main.extensionManager.disableExtension(TARGET);
         await waitFor(() => manager() === null, 2000);
         await delay(1500);
-        report('disabled', {restored: background(), secondAlive: alive(secondPid)});
+        report('disabled', {wallpaper: background(), secondAlive: alive(secondPid)});
         this._painting = false;
         global.context.terminate();
     }

@@ -83,7 +83,7 @@ eslint.config.js, package.json, Makefile, LICENSE, README.md
 - A mirrored logical-monitor group has one player. Its selection is the first configured connector in stable sorted order; preferences explains the shared selection, while each physical monitor keeps its stored selection for later unmirrored use.
 - `monitors-changed` events from layout and the backend monitor manager are debounced (1 s) before reconciling players. Position, scale, transform and current layout index are part of target identity; unchanged logical players are retained.
 - Owned still/clone containers are restacked above the matching monitor's topmost background actor when Shell rebuilds backgrounds. Deferred rebinding preserves actor content and visibility, with synchronous cancellation on disable.
-- Spanned stills are composed once per logical rectangle onto one canvas. The canvas uses the logical-layout union, a common raster scale (maximum logical monitor scale), and shared edge rounding so adjacent rectangles do not gap or overlap. The wallpaper uses `picture-options='spanned'`.
+- The system wallpaper is the native-size first frame of the primary monitor's video, applied with `picture-options` matching its fit mode (fill → `zoom`, fit → `scaled`, stretch → `stretched`) on a black background. GNOME places it on every monitor, so it never depends on the monitor layout.
 
 ### 6. Pause policy
 
@@ -105,13 +105,13 @@ Mirrored connectors form one logical monitor and pause as a single unit. The las
 
 - Disposable cache: `~/.cache/gink-video-wallpaper/`.
 - Persistent publications: `$XDG_DATA_HOME/gink-video-wallpaper/wallpapers/` (normally `~/.local/share/...`). Applied wallpapers live only here.
-- Cache key: hash of source identity, exact playback-asset identity, target raster width/height, scale, fit mode, transformation version, and entry kind (`still` vs `media`). Spanned identity additionally includes the ordered logical canvas mapping and component still identities.
+- Cache key: hash of source identity, exact playback-asset identity, target raster width/height, scale, fit mode, transformation version, and entry kind (`still`, `native` or `media`). Native stills are keyed by source identity and display size only.
 - Contents: completed still frames (PNG) and optimized SDR H.264 transcodes (GIFs always; videos optional). A missing prepared transcode falls back to the original and its matching still; no transcode runs during login.
 - Producers write unique temporary files and publish atomically. Consumers acquire a stable private playback reference before loading and retry or fall back if the source disappears during acquisition. The reference lifetime runs through final reap; consumers that cancel before spawn release immediately, and prefs thumbnail consumers release after extraction. Publishing wallpaper acquires a private input reference first and regenerates/retries if clear-cache raced acquisition. Promise deduplication is process-local.
 - "Clear cache" removes a snapshot of eligible completed cache entries. It does not remove active working directories, private playback references, or published wallpapers. Cancellation removes only the caller's job and temporary files. Published-wallpaper garbage collection is deferred initially; preferences reports preserved assets.
 
 ### 9. Wallpaper sync
 
-- On first enable, save the original `picture-uri`, `picture-uri-dark`, and `picture-options` into extension settings.
-- Set them to the persistent published still (or spanned composite), never to a disposable cache path.
-- Restore originals when the extension is disabled by the user (not on lock, to keep the still on the lock screen). Restored publications remain until a future garbage-collection design.
+- On first apply, save the original `picture-uri`, `picture-uri-dark`, `picture-options`, `primary-color` and `color-shading-type` into extension settings. Keys changed while the extension was off replace the saved values on the next apply.
+- Set them to the persistent published native still, never to a disposable cache path.
+- Disable, lock and logout keep the still, so turning the extension off looks like pausing. Originals are restored only when every video is removed in preferences. Restored publications remain until a future garbage-collection design.

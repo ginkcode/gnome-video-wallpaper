@@ -12,7 +12,7 @@ Play videos and GIFs as your GNOME desktop wallpaper, with a separate wallpaper 
 - Can pause on battery, in the Overview, when windows cover the desktop, or while the screen is shared or accessed remotely.
 - Optional display-sized copies of each video that use less power.
 - A top bar menu with Play/Pause, Next Video and Preferences that also shows why the video paused automatically.
-- Restores your original wallpaper when the extension is disabled.
+- When the extension is turned off, a still frame of the primary display's video stays as the wallpaper, placed the same way as the video.
 
 ## Requirements
 
@@ -88,7 +88,7 @@ gnome-extensions uninstall gink-video-wallpaper@ginkcode.github.io
 rm -rf ~/.cache/gink-video-wallpaper
 ```
 
-Disabling or uninstalling the extension restores the wallpaper you had before.
+Disabling or uninstalling the extension keeps the still frame as your wallpaper. To get your previous wallpaper back, remove all videos in the preferences before disabling, or pick a new wallpaper in Settings.
 
 ## Support
 

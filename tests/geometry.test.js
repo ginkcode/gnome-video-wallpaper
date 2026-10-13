@@ -1,7 +1,6 @@
 import {
     computePlacement,
     ffmpegScaleFilter,
-    computeCanvas,
     FitMode,
     TRANSFORM_VERSION,
     targetGeometry,
@@ -74,29 +73,6 @@ test('invalid arguments throw', () => {
     assertThrows(() => computePlacement(0, 100, 100, 100, FitMode.FILL));
     assertThrows(() => computePlacement(100, 100, 100, 100, 'invalid'));
     assertThrows(() => ffmpegScaleFilter(0, 100, FitMode.FILL));
-    assertThrows(() => computeCanvas([], 1));
-});
-
-test('computeCanvas handles adjacent monitors and common scale', () => {
-    const monitors = [
-        {key: 'eDP-1', x: 0, y: 0, width: 1920, height: 1080},
-        {key: 'HDMI-1', x: 1920, y: 0, width: 2560, height: 1440},
-    ];
-    const canvas = computeCanvas(monitors, 1.5);
-    assertEqual(canvas.width, (1920 + 2560) * 1.5);
-    assertEqual(canvas.height, 1440 * 1.5);
-    assertEqual(canvas.rectangles[0].width, 1920 * 1.5);
-    assertEqual(canvas.rectangles[1].x, canvas.rectangles[0].x + canvas.rectangles[0].width);
-});
-
-test('computeCanvas deduplicates shared edges without gaps', () => {
-    const monitors = [
-        {key: 'left', x: -1000, y: -500, width: 1000, height: 1000},
-        {key: 'right', x: 0, y: -500, width: 1000, height: 1000},
-    ];
-    const canvas = computeCanvas(monitors, 1.25);
-    assertEqual(canvas.rectangles[0].x + canvas.rectangles[0].width, canvas.rectangles[1].x);
-    assertEqual(canvas.width, 2000 * 1.25);
 });
 
 await run();

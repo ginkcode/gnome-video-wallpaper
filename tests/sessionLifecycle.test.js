@@ -1,4 +1,4 @@
-import {isLockedSession, watchSleep} from '../lib/sessionLifecycle.js';
+import {watchSleep} from '../lib/sessionLifecycle.js';
 import {assertDeepEqual, assertEqual, run, test} from './harness.js';
 
 class FakeLoginManager {
@@ -25,13 +25,6 @@ class FakeLoginManager {
         }
     }
 }
-
-test('locked and unlock-dialog sessions keep the wallpaper; the user session restores it', () => {
-    assertEqual(isLockedSession({isLocked: true, currentMode: 'unlock-dialog'}), true);
-    assertEqual(isLockedSession({isLocked: false, currentMode: 'unlock-dialog'}), true);
-    assertEqual(isLockedSession({isLocked: false, currentMode: 'user'}), false);
-    assertEqual(isLockedSession(null), false);
-});
 
 test('sleep stops and resume restarts once per pair; unwatch disconnects', () => {
     const login = new FakeLoginManager();

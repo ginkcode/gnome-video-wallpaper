@@ -24,6 +24,8 @@ Authoritative definition: [tasks/T02-gsettings-schema.md](tasks/T02-gsettings-sc
 | `saved-picture-uri` | `s` | `''` | Original wallpaper (light) for restore |
 | `saved-picture-uri-dark` | `s` | `''` | Original wallpaper (dark) for restore |
 | `saved-picture-options` | `s` | `''` | Original picture-options for restore |
+| `saved-primary-color` | `s` | `''` | Original primary-color for restore |
+| `saved-color-shading-type` | `s` | `''` | Original color-shading-type for restore |
 
 Audio has no setting; it is always off.
 
@@ -33,14 +35,14 @@ Audio has no setting; it is always off.
 
 Display state separates physical mode dimensions from transformed logical monitor rectangles and scale. Mirrored connectors share one logical monitor/player. Choose the first configured connector in stable sorted order; prefs explains the shared selection and retains all physical selections for unmirrored use.
 
-Spanned wallpaper uses one logical-layout canvas: union of logical rectangles, common raster scale (maximum logical monitor scale), translated origin and shared edge rounding. Compose once per logical rectangle; physical mode dimensions are not desktop offsets.
+The system wallpaper is the primary monitor's native still; GNOME applies the fit mode on each monitor, so no layout canvas is composed.
 
 ## Cache layout
 
 ```
 $XDG_CACHE_HOME/gink-video-wallpaper/     default ~/.cache/gink-video-wallpaper/
   stills/<key>.png          completed exact-asset stills
-  spanned/<key>.png         completed logical-layout composites
+  native/<key>.png          completed source-size stills for the system wallpaper
   media/<key>.mp4           completed optimized / GIF SDR transcodes
   jobs/<pid>-<uuid>/        producer-owned temporary work, never clear-cache eligible
   refs/<pid>-<uuid>/        private acquired playback references, released after reaping
@@ -50,7 +52,7 @@ $XDG_DATA_HOME/gink-video-wallpaper/      default ~/.local/share/gink-video-wall
 
 Private references live beside the cache (not in the tmpfs runtime directory) so they can be hard links to cache entries and to sources on the same filesystem; other sources are copied. Clear-cache skips completed entries that still have another hard link (an active reference) and removes `refs/`/`jobs/` directories only when their owning PID is gone.
 
-`<key>` = SHA-256 of source path/size/mtime, exact selected asset identity, target raster width/height, scale, fit mode, transformation version and kind. Spanned identity additionally includes the ordered logical canvas mapping and component still identities. Optimized geometry is baked; still extraction and mpv must not fit it twice. Source sample aspect ratio, rotation and SDR color metadata are normalized/interpreted consistently by the transformation.
+`<key>` = SHA-256 of source path/size/mtime, exact selected asset identity, target raster width/height, scale, fit mode, transformation version and kind. Native stills use kind `native` and only the source identity and display size. Optimized geometry is baked; still extraction and mpv must not fit it twice. Source sample aspect ratio, rotation and SDR color metadata are normalized/interpreted consistently by the transformation.
 
 Producers use unique temp files and atomic publication. In-memory promise deduplication is process-local. Before media load, consumers copy or hard-link a stable private playback reference whose lifetime runs through that player's final reap; consumers that cancel before spawn release immediately, and prefs thumbnail consumers release after extraction. If deletion races acquisition, retry or select the original and prepare its matching still. Publishing a wallpaper acquires a private input reference first and regenerates/retries if clear-cache raced acquisition. A missing prepared transcode never triggers transcoding at login or an unannounced switch after the still was chosen.
 

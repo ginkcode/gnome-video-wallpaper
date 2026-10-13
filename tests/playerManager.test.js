@@ -219,63 +219,68 @@ test('startup order: still, watch before spawn, subscribe, paused load, both rea
     await drainReaps(fixture);
 });
 
-function aggregateEnv(fixture) {
+function wallpaperEnv(fixture) {
     const env = fixture.env();
     const resolve = env.resolveTargets;
-    env.resolveTargets = async options => ({targets: await resolve(options), layout: {
-        width: 20, height: 10, rasterScale: 1.5, rectangles: fixture.keys.map((key, i) =>
-            ({key, x: i * 10, y: 0, width: 10, height: 10}))}});
-    env.composeSpanned = (stills, _canvas, cancellable) => {
-        fixture.components = stills;
-        return fixture.gate('compose', cancellable, '/spanned.png');
-    };
-    env.applyWallpaper = (path, options) => fixture.log.push(`aggregate:${options}:${path}`);
+    env.resolveTargets = async options => (await resolve(options)).map((target, index) =>
+        ({...target, monitorIndex: index, geometry: {fitMode: index ? 'fit' : 'fill'}}));
+    env.primaryMonitorIndex = () => 1;
+    env.nativeStill = (media, cancellable) => fixture.gate('native', cancellable, `/native${media.path}.png`);
+    env.applyWallpaper = (path, options) => fixture.log.push(`system:${options}:${path}`);
     return env;
 }
 
-test('aggregate is prepared, composed, published and applied before any handoff', async () => {
+test('the primary monitor native still is published and applied with its fit mode before any handoff', async () => {
     const fixture = new Fixture();
     fixture.keys = ['A', 'B'];
-    const manager = new PlayerManagerLifecycle({env: aggregateEnv(fixture), logger: quiet, fadeMs: 0});
+    const manager = new PlayerManagerLifecycle({env: wallpaperEnv(fixture), logger: quiet, fadeMs: 0});
     await manager.start();
-    assertEqual(fixture.components.length, 2);
-    assertEqual(fixture.components.every(still => still.path.startsWith('/wallpapers') && still.identity), true);
-    assertEqual(fixture.log.indexOf('compose') > fixture.log.lastIndexOf('still'), true);
-    assertEqual(fixture.log.indexOf('aggregate:spanned:/wallpapers/spanned.png') < fixture.log.indexOf('static'), true);
+    const applied = fixture.log.filter(entry => entry.startsWith('system:'));
+    assertDeepEqual(applied, ['system:scaled:/wallpapers/native/video.mp4.png']);
+    assertEqual(fixture.log.indexOf('native') > fixture.log.lastIndexOf('still'), true);
+    assertEqual(fixture.log.indexOf(applied[0]) < fixture.log.indexOf('static'), true);
+    await settle(fixture, manager.reconcile());
+    assertEqual(fixture.log.filter(entry => entry.startsWith('system:')).length, 1, 'unchanged primary not reapplied');
     manager.stop();
     await drainReaps(fixture);
 });
 
-for (const boundary of ['compose', 'aggregate-publish']) {
-    test(`stop at ${boundary} discards the aggregate and releases all prepared assets`, async () => {
-        const fixture = new Fixture({held: new Set([boundary])});
-        fixture.keys = ['A', 'B'];
-        const env = aggregateEnv(fixture);
-        const publish = env.publishWallpaper;
-        env.publishWallpaper = (path, cancellable) => path === '/spanned.png'
-            ? fixture.gate('aggregate-publish', cancellable, '/wallpapers/spanned.png') : publish(path, cancellable);
-        const manager = new PlayerManagerLifecycle({env, logger: quiet});
-        const starting = manager.start();
-        await fixture.reached(boundary);
-        manager.stop();
-        fixture.release(boundary);
-        await starting;
-        await drainReaps(fixture);
-        assertEqual(fixture.processes.length, 0);
-        assertEqual(fixture.acquired.length, 0);
-        assertEqual(fixture.log.some(entry => entry.startsWith('aggregate:')), false);
-    });
-}
-
-test('composition failure preserves the previous wallpaper while playback starts', async () => {
+test('without a primary target the first target provides the system wallpaper', async () => {
     const fixture = new Fixture();
     fixture.keys = ['A', 'B'];
-    const env = aggregateEnv(fixture);
-    env.composeSpanned = () => Promise.reject(new Error('composition failed'));
+    const env = wallpaperEnv(fixture);
+    env.primaryMonitorIndex = () => 5;
+    const manager = new PlayerManagerLifecycle({env, logger: quiet, fadeMs: 0});
+    await manager.start();
+    assertEqual(fixture.log.includes('system:zoom:/wallpapers/native/video.mp4.png'), true);
+    manager.stop();
+    await drainReaps(fixture);
+});
+
+test('stop at the native still discards the wallpaper and releases all prepared assets', async () => {
+    const fixture = new Fixture({held: new Set(['native'])});
+    fixture.keys = ['A', 'B'];
+    const manager = new PlayerManagerLifecycle({env: wallpaperEnv(fixture), logger: quiet});
+    const starting = manager.start();
+    await fixture.reached('native');
+    manager.stop();
+    fixture.release('native');
+    await starting;
+    await drainReaps(fixture);
+    assertEqual(fixture.processes.length, 0);
+    assertEqual(fixture.acquired.length, 0);
+    assertEqual(fixture.log.some(entry => entry.startsWith('system:')), false);
+});
+
+test('native still failure preserves the previous wallpaper while playback starts', async () => {
+    const fixture = new Fixture();
+    fixture.keys = ['A', 'B'];
+    const env = wallpaperEnv(fixture);
+    env.nativeStill = () => Promise.reject(new Error('extraction failed'));
     const manager = new PlayerManagerLifecycle({env, logger: quiet, fadeMs: 0});
     await manager.start();
     assertEqual(fixture.processes.length, 2);
-    assertEqual(fixture.log.some(entry => entry.startsWith('aggregate:')), false);
+    assertEqual(fixture.log.some(entry => entry.startsWith('system:')), false);
     manager.stop();
     await drainReaps(fixture);
 });
@@ -644,7 +649,7 @@ test('players start sequentially with the stagger between them', async () => {
     await manager.start();
     assertEqual(fixture.log.lastIndexOf('probe') < fixture.log.indexOf('spawn'), true, 'all assets prepared before spawning');
     assertEqual((spawns[1] - spawns[0]) / 1000 >= 39, true, 'staggered spawn');
-    assertEqual(fixture.log.some(entry => entry.startsWith('apply:')), false, 'no single-monitor apply');
+    assertEqual(fixture.log.filter(entry => entry.startsWith('apply:')).length, 1, 'one system wallpaper');
     assertEqual(manager.getState('A'), PlayerState.PLAYING);
     assertEqual(manager.getState('B'), PlayerState.PLAYING);
     manager.stop();

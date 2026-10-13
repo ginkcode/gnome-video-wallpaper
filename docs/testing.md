@@ -54,7 +54,7 @@ Used for enable/disable cycles, window hiding, and crash recovery without loggin
 - [ ] Disable during fade, retry, or reaping, then immediate re-enable: no stale continuation, overlapping player, actor, signal, or grace timer.
 - [ ] Clear cache while media is in use: active jobs/private references and published wallpapers survive; only the eligible completed snapshot is removed.
 - [ ] Fill, fit, and stretch produce distinct optimized identities; a missing optimized file falls back to its original and matching still without login transcoding.
-- [ ] Mixed-scale, rotated, and mirrored monitors: one logical player per mirrored group, stable selection explained in preferences, and a gap-free spanned canvas.
+- [ ] Mixed-scale, rotated, and mirrored monitors: one logical player per mirrored group, stable selection explained in preferences, and the primary monitor's still as the system wallpaper.
 - [ ] HDR source: actionable preferences error; SDR sources remain supported.
 - [ ] Logout → login repeated 5 times: no slowdown, no duplicate players.
 - [ ] Lock → unlock: still on lock screen, video resumes.
@@ -67,5 +67,5 @@ Used for enable/disable cycles, window hiding, and crash recovery without loggin
 - [ ] GIF plays with correct timing and loops.
 - [ ] MP4, MKV, MOV, WebM files play.
 - [ ] External monitor hotplug, different videos per monitor, mixed scaling.
-- [ ] Extension disable restores original wallpaper and leaves no processes.
+- [ ] Extension disable keeps the still as the wallpaper and leaves no processes.
 - [ ] Works alongside Blur My Shell and Dash to Dock.

@@ -62,7 +62,7 @@ Self-check against the [extensions.gnome.org review guidelines](https://gjs.guid
 | GIF timing and looping | Automated | T10, T23 |
 | MP4, MKV, MOV, WebM | Automated | T10 |
 | Hotplug, different videos per monitor, mixed scaling | Partly | T25 nested hotplug; real external monitor needed |
-| Disable restores wallpaper, leaves no processes | Automated | T13, T17, T28 |
+| Disable keeps the still wallpaper, leaves no processes | Automated | T13, T17, T28 |
 | Blur My Shell and Dash to Dock | Automated | T27 (known issues are documented in [compatibility.md](compatibility.md)) |
 
 Other real-session checks still open in task files:

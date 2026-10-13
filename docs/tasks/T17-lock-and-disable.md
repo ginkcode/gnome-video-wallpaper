@@ -1,5 +1,7 @@
 # T17 — Lock/unlock and disable semantics
 
+> Changed by [T39](T39-native-system-wallpaper.md): disable no longer restores the wallpaper.
+
 - **Milestone:** M3
 - **Depends on:** T13, T14, T15
 - **Status:** review

@@ -1,5 +1,7 @@
 # T26 — Spanned multi-monitor still
 
+> Superseded by [T39](T39-native-system-wallpaper.md): the spanned composite was removed.
+
 - **Milestone:** M6
 - **Depends on:** T12, T13, T25
 - **Status:** review

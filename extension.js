@@ -12,7 +12,7 @@ import {PanelIndicator} from './lib/panelIndicator.js';
 import {PauseController} from './lib/pauseController.js';
 import {PlayerManager} from './lib/playerManager.js';
 import {Playlist} from './lib/playlist.js';
-import {isLockedSession, watchSleep} from './lib/sessionLifecycle.js';
+import {watchSleep} from './lib/sessionLifecycle.js';
 import {optimizedDir} from './lib/transcoder.js';
 import {UserPauseController} from './lib/userPauseController.js';
 import {WorkspaceAnimationFilter} from './lib/workspaceAnimationFilter.js';
@@ -85,7 +85,7 @@ export default class GinkVideoWallpaper extends Extension {
         this._userPause = null;
         this._pause?.disable();
         this._pause = null;
-        this._manager?.stop({restore: !isLockedSession(Main.sessionMode)});
+        this._manager?.stop();
         this._manager = null;
         this._animationFilter?.disable();
         this._animationFilter = null;

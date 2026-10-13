@@ -53,6 +53,7 @@ Read first:
 | [T36](T36-release-1-1.md) | Release 1.1 | M7 | T28, T34, T35 | review | Claude Code |
 | [T37](T37-remote-pause-and-status.md) | Pause while shared or remote; show auto-pause reasons | M7 | T20, T29 | review | Claude Code |
 | [T38](T38-release-1-2.md) | Release 1.2 | M7 | T36, T37 | review | Claude Code |
+| [T39](T39-native-system-wallpaper.md) | Native-size system wallpaper kept after disable | M7 | T13, T17, T26 | review | Claude Code |
 
 ## Parallel tracks
 

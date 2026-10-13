@@ -2,7 +2,7 @@ import Gio from 'gi://Gio';
 
 import {sleep} from '../lib/async.js';
 import {parseDisplayConfigState} from '../lib/monitorIdentity.js';
-import {MONITOR_SIGNAL, MonitorWatcher, planTargets, planWallpaper, selectionKey} from '../lib/monitorTopology.js';
+import {MONITOR_SIGNAL, MonitorWatcher, planTargets, selectionKey} from '../lib/monitorTopology.js';
 import {assertDeepEqual, assertEqual, run, test} from './harness.js';
 
 const quiet = {debug() {}, info() {}, warn() {}, error() {}};
@@ -95,19 +95,6 @@ test('selection key changes with position, index, scale and rotation but raster 
     assertEqual(selectionKey({...plan, vo: 'auto'}, ['asset']) !== selectionKey(plan, ['asset']), true, 'vo');
     assertEqual(selectionKey({...plan, systemWallpaper: true}, ['asset']), selectionKey(plan, ['asset']),
         'becoming the only monitor does not restart its player');
-});
-
-test('wallpaper planner includes unconfigured, negative, rotated and mirrored logical rectangles', () => {
-    const topology = loadFixture('display-state-mixed.json');
-    const canvas = planWallpaper(moved(topology, 'eDP-1', {x: -1920, y: -500}));
-    assertEqual(canvas.rasterScale, 1.5, 'maximum logical scale');
-    assertEqual(canvas.originX, -1920);
-    assertEqual(canvas.originY, -500);
-    assertEqual(canvas.rectangles.length, 2);
-    assertEqual(canvas.rectangles[0].width, 1440, 'rotated logical width');
-    assertEqual(canvas.rectangles[0].height, 2561, 'unequal height');
-    assertEqual(planWallpaper(loadFixture('display-state-mirrored.json')), null, 'mirror is single logical');
-    assertEqual(planWallpaper(loadFixture('display-state-edp1.json')), null);
 });
 
 class FakeSource {

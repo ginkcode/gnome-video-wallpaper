@@ -22,7 +22,7 @@ Let users set a video or animated GIF as the GNOME desktop wallpaper, with indep
 | External tools | `mpv`, `ffmpeg`, `ffprobe` allowed and used |
 | Audio | Always off; no option |
 | Overview / workspace thumbnails | Show the static still image, not live video |
-| System wallpaper | Extension sets GNOME wallpaper to the video's first frame; restores the original on disable |
+| System wallpaper | Extension sets GNOME wallpaper to the primary monitor video's first frame at its native size, with picture-options matching the fit mode; it stays after disable and the original returns only when all videos are removed |
 | Maximized / fullscreen windows | Pause the video on that monitor |
 | Pause on battery | Enabled by default |
 | Default fit mode | Fill / crop to cover |
@@ -51,6 +51,6 @@ Let users set a video or animated GIF as the GNOME desktop wallpaper, with indep
 - A crashing player must not affect the shell; restart is bounded.
 - Readiness is latched before spawning/loading: immediate window hiding, IPC subscribed before paused media load, persistent-state reconciliation plus events, and independent cancellable compositor/content gates.
 - A live selection change may briefly show the preloaded matching still. Old player reaping precedes replacement; there is at most one live player per logical monitor.
-- `disable()` synchronously invalidates generations, cancels work, removes actors/signals/timers, and requests forceful termination. Residual reaping owns only its old process/socket. Wallpaper restores on user disable, not lock; stale work cannot affect re-enable. Shell-exit child lifetime handling is a feasibility requirement to verify in M1.
+- `disable()` synchronously invalidates generations, cancels work, removes actors/signals/timers, and requests forceful termination. Residual reaping owns only its old process/socket. Disable never restores the wallpaper; stale work cannot affect re-enable. Shell-exit child lifetime handling is a feasibility requirement to verify in M1.
 - Applied wallpapers are immutable persistent data files, not disposable cache entries. Clear-cache preserves published wallpapers and active jobs/references; publication GC is deferred initially.
 - Physical monitor selections remain independent in storage. Mirrored displays share one logical wallpaper, chosen by first configured connector in stable sorted order and explained in preferences. Logical transformed rectangles, common canvas scale and shared edge rounding define multi-monitor composition.
